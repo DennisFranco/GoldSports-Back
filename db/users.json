@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "name": "Admin de Prueba",
+    "email": "admin1@mail.com",
+    "password": "$2a$12$bsWP9sx10sUnqeZzMUrx7.ECB3svtmm.mqVadOkkFPxpJV7ZkAHNW",
+    "role": 1,
+    "status": 1,
+    "phoneNumber": "+1234567890"
+  },
+  {
+    "id": 2,
+    "name": "Delegado 1",
+    "email": "delegado1@mail.com",
+    "password": "$2a$12$e9BbV.fUrP8.OqRkC1cnZ.jmxICRcAQQ4WadC8P0GpO6vZ6lf5LX2",
+    "role": 2,
+    "status": 1,
+    "phoneNumber": "+1234567890"
+  }
+]
