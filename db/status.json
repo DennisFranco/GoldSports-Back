@@ -8,5 +8,15 @@
     "id": 2,
     "status": "Inative",
     "description": "The user is inactive, so he cannot log in to the system.."
+  },
+  {
+    "id": 3,
+    "status": "Suspended",
+    "description": "The player was suspended and is not available to play."
+  },
+  {
+    "id": 4,
+    "status": "Enabled",
+    "description": "The player is available to play."
   }
 ]
