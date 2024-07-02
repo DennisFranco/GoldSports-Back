@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "id_tournament": 1,
+    "name": "Grupo A"
+  },
+  {
+    "id": 2,
+    "id_tournament": 1,
+    "name": "Grupo B"
+  },
+  {
+    "id": 3,
+    "id_tournament": 1,
+    "name": "Grupo C"
+  }
+]

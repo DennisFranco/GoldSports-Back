@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1,
+    "id_tournament": 1,
+    "round": 1,
+    "date": "2024-07-01",
+    "hour_start": "18:00",
+    "place": 1,
+    "local_team": 1,
+    "visiting_team": 2,
+    "local_result": 2,
+    "visiting_result": 1,
+    "status": "Finalizado",
+    "status_reason": ""
+  },
+  {
+    "id": 1,
+    "id_tournament": 1,
+    "round": 2,
+    "date": "2024-07-02",
+    "hour_start": "18:00",
+    "place": 1,
+    "local_team": 1,
+    "visiting_team": 2,
+    "local_result": 2,
+    "visiting_result": 1,
+    "status": "Finalizado",
+    "status_reason": ""
+  },
+  {
+    "id": 1,
+    "id_tournament": 1,
+    "round": 2,
+    "date": "2024-07-03",
+    "hour_start": "18:00",
+    "place": 1,
+    "local_team": 1,
+    "visiting_team": 2,
+    "local_result": 0,
+    "visiting_result": 0,
+    "status": "Programado",
+    "status_reason": ""
+  }
+]

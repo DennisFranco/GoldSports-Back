@@ -12,6 +12,8 @@
     "red_cards": "0",
     "suspension_date": "",
     "suspension matches": "",
-    "status": "4"
+    "status": "4",
+    "id_team": 1,
+    "birth_date": "2003-06-29"
   }
 ]

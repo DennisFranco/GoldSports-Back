@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "name": "Espíritu Triunfador",
+    "description": "niños de 4 años a 18 años"
+  },
+  {
+    "id": 2,
+    "name": "Libre Metro",
+    "description": ""
+  },
+  {
+    "id": 3,
+    "name": "Libre Elite",
+    "description": ""
+  },
+  {
+    "id": 4,
+    "name": "Señor Master",
+    "description": ""
+  },
+  {
+    "id": 5,
+    "name": "Veteranos",
+    "description": ""
+  },
+  {
+    "id": 6,
+    "name": "Rodillones",
+    "description": ""
+  }
+]

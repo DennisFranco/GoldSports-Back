@@ -5,6 +5,8 @@ const usersController = require("./controllers/usersController.js");
 const fieldsController = require("./controllers/fieldsController.js");
 const playersController = require("./controllers/playersController.js");
 const teamsController = require("./controllers/teamsController.js");
+const matchesController = require("./controllers/matchesController.js");
+const classificationsController = require("./controllers/classificationsController.js");
 
 function verificarToken(req, res, next) {
   console.log("req", req.headers);
@@ -41,6 +43,12 @@ router
   .get("/teams/:id", verificarToken, teamsController.getTeamByID)
   .post("/teams", verificarToken, teamsController.createTeam)
   .put("/teams/:id", verificarToken, teamsController.updateTeam)
-  .delete("/teams/:id", verificarToken, teamsController.deleteTeam);
+  .delete("/teams/:id", verificarToken, teamsController.deleteTeam)
+  .get("/matches", matchesController.getAllMatches)
+  .get("/matches/:id", verificarToken, matchesController.getMatchByID)
+  .post("/matches", verificarToken, matchesController.createMatch)
+  .put("/matches/:id", verificarToken, matchesController.updateMatch)
+  .delete("/matches/:id", verificarToken, matchesController.deleteMatch)
+  .get("/classifications", classificationsController.getAllClassifications);
 
 module.exports = router;

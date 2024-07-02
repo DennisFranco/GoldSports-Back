@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "name": "Copa GoldSport",
+    "year": 2024,
+    "id_categoria": 1
+  },
+  {
+    "id": 2,
+    "name": "Liga Nacional",
+    "year": 2024,
+    "id_categoria": 2
+  }
+]
