@@ -80,8 +80,8 @@ const createField = async (req, res) => {
     };
     fields.push(newField);
     await writeJSONData(fieldsPath, fields);
-    res.status(201).send({
-      code: 201,
+    res.status(200).send({
+      code: 200,
       message: "Field successfully created",
       data: newField,
     });

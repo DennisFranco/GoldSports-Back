@@ -1,0 +1,52 @@
+[
+  {
+    "id": 1,
+    "name": "Gol",
+    "description": "Anotación de un gol"
+  },
+  {
+    "id": 2,
+    "name": "Tarjeta Amarilla",
+    "description": "Amonestación con tarjeta amarilla"
+  },
+  {
+    "id": 3,
+    "name": "Tarjeta Roja",
+    "description": "Expulsión con tarjeta roja"
+  },
+  {
+    "id": 4,
+    "name": "Sustitución",
+    "description": "Cambio de jugador"
+  },
+  {
+    "id": 5,
+    "name": "Inicio",
+    "description": "Inicio del partido"
+  },
+  {
+    "id": 6,
+    "name": "Entretiempo",
+    "description": "Inicio del entretiempo"
+  },
+  {
+    "id": 7,
+    "name": "Final",
+    "description": "Final del partido"
+  },
+  {
+    "id": 8,
+    "name": "Cancelación",
+    "description": "Partido cancelado"
+  },
+  {
+    "id": 9,
+    "name": "Aplazamiento",
+    "description": "Partido aplazado"
+  },
+  {
+    "id": 10,
+    "name": "Walkover",
+    "description": "Equipo no se presentó"
+  }
+]

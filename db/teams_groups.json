@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "id_team": 1,
+    "id_group": 1
+  },
+  {
+    "id": 2,
+    "id_team": 2,
+    "id_group": 1
+  }
+]

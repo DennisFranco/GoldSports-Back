@@ -3,8 +3,14 @@
     "id": 1,
     "id_match": 1,
     "id_player": 1,
-    "event_type": "Gol",
-    "minute": 30,
-    "description": "Gol de cabeza"
+    "id_event_type": 1,
+    "minute": 30
+  },
+  {
+    "id": 1,
+    "id_match": 1,
+    "id_player": 1,
+    "id_event_type": 2,
+    "minute": 30
   }
 ]

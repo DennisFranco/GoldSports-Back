@@ -44,7 +44,6 @@ const getAllUsers = async (req, res) => {
       return res.status(500).send("Error reading users from file");
     }
   } catch (err) {
-    console.error(err.message);
     res.status(500).send("Server error");
   }
 };
@@ -64,13 +63,11 @@ const getAllRoles = async (req, res) => {
       return res.status(500).send("Error reading roles from file");
     }
   } catch (err) {
-    console.error(err.message);
     res.status(500).send("Server error");
   }
 };
 
 const loginUser = async (req, res) => {
-  console.log("llega", req.body);
   const { email, password } = req.body; // Recibir nombre y contraseña del cuerpo de la solicitud
   try {
     const usersPath = path.join(__dirname, "../../db/users.json");

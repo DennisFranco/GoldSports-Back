@@ -7,9 +7,11 @@ const playersController = require("./controllers/playersController.js");
 const teamsController = require("./controllers/teamsController.js");
 const matchesController = require("./controllers/matchesController.js");
 const classificationsController = require("./controllers/classificationsController.js");
+const tournamentController = require("./controllers/tournamentController.js");
+const categoriesController = require("./controllers/categoriesController.js");
+const groupsController = require("./controllers/groupsController.js");
 
 function verificarToken(req, res, next) {
-  console.log("req", req.headers);
   const bearerHeader = req.headers["authorization"];
   if (typeof bearerHeader !== "undefined") {
     const bearerToken = bearerHeader.split(" ")[1];
@@ -27,28 +29,56 @@ function verificarToken(req, res, next) {
 
 router
   .post("/login", usersController.loginUser)
-  .get("/users", verificarToken, usersController.getAllUsers)
-  .get("/roles", verificarToken, usersController.getAllRoles)
-  .get("/fields", verificarToken, fieldsController.getAllFields)
-  .get("/fields/:id", verificarToken, fieldsController.getFieldByID)
-  .post("/fields", verificarToken, fieldsController.createField)
-  .put("/fields/:id", verificarToken, fieldsController.updateField)
-  .delete("/fields/:id", verificarToken, fieldsController.deleteField)
-  .get("/players", verificarToken, playersController.getAllPlayers)
-  .get("/players/:id", verificarToken, playersController.getPlayerByID)
-  .post("/players", verificarToken, playersController.createPlayer)
-  .put("/players/:id", verificarToken, playersController.updatePlayer)
-  .delete("/players/:id", verificarToken, playersController.deletePlayer)
+  .get("/users", usersController.getAllUsers)
+  .get("/roles", usersController.getAllRoles)
+  .get("/fields", fieldsController.getAllFields)
+  .get("/fields/:id", fieldsController.getFieldByID)
+  .post("/fields", fieldsController.createField)
+  .put("/fields/:id", fieldsController.updateField)
+  .delete("/fields/:id", fieldsController.deleteField)
+  .get("/players", playersController.getAllPlayers)
+  .get("/players/:id", playersController.getPlayerByID)
+  .post("/players", playersController.createPlayer)
+  .put("/players/:id", playersController.updatePlayer)
+  .delete("/players/:id", playersController.deletePlayer)
   .get("/teams", teamsController.getAllTeams)
-  .get("/teams/:id", verificarToken, teamsController.getTeamByID)
-  .post("/teams", verificarToken, teamsController.createTeam)
-  .put("/teams/:id", verificarToken, teamsController.updateTeam)
-  .delete("/teams/:id", verificarToken, teamsController.deleteTeam)
+  .get("/teams/:id", teamsController.getTeamByID)
+  .get("/teams/tournament/:id_tournament", teamsController.getTeamsByTournament)
+  .post("/teams", teamsController.createTeam)
+  .put("/teams/:id", teamsController.updateTeam)
+  .delete("/teams/:id", teamsController.deleteTeam)
   .get("/matches", matchesController.getAllMatches)
-  .get("/matches/:id", verificarToken, matchesController.getMatchByID)
-  .post("/matches", verificarToken, matchesController.createMatch)
-  .put("/matches/:id", verificarToken, matchesController.updateMatch)
-  .delete("/matches/:id", verificarToken, matchesController.deleteMatch)
+  .get("/matches/:id", matchesController.getMatchByID)
+  .post("/matches", matchesController.createMatch)
+  .put("/matches/:id", matchesController.updateMatch)
+  .delete("/matches/:id", matchesController.deleteMatch)
+  .get("/tournaments", tournamentController.getAllTournaments)
+  .get("/tournaments/:id", tournamentController.getTournamentByID)
+  .post("/tournaments", tournamentController.createTournament)
+  .put(
+    "/tournaments/:id",
+    verificarToken,
+    tournamentController.updateTournament
+  )
+  .delete(
+    "/tournaments/:id",
+    verificarToken,
+    tournamentController.deleteTournament
+  )
+  .get("/categories", categoriesController.getAllCategories)
+  .get("/categories/:id", categoriesController.getCategoryByID)
+  .post("/categories", categoriesController.createCategory)
+  .put("/categories/:id", categoriesController.updateCategory)
+  .delete(
+    "/categories/:id",
+    verificarToken,
+    categoriesController.deleteCategory
+  )
+  .get("/groups", groupsController.getAllGroups)
+  .get("/groups/:id", groupsController.getGroupByID)
+  .post("/groups", groupsController.createGroup)
+  .put("/groups/:id", groupsController.updateGroup)
+  .delete("/groups/:id", groupsController.deleteGroup)
   .get("/classifications", classificationsController.getAllClassifications);
 
 module.exports = router;

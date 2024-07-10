@@ -64,16 +64,30 @@ const getAllClassifications = async (req, res) => {
 
       formattedClassifications[tournament][group].push({
         team,
-        puntos: classification.puntos,
-        partidos_jugados: classification.partidos_jugados,
-        partidos_ganados: classification.partidos_ganados,
-        partidos_empatados: classification.partidos_empatados,
-        partidos_perdidos: classification.partidos_perdidos,
-        goles_favor: classification.goles_favor,
-        goles_contra: classification.goles_contra,
-        diferencia_goles: classification.diferencia_goles,
+        points: classification.points,
+        matches_played: classification.matches_played,
+        matches_won: classification.matches_won,
+        tied_matches: classification.tied_matches,
+        lost_matches: classification.lost_matches,
+        favor_goals: classification.favor_goals,
+        goals_against: classification.goals_against,
+        goal_difference: classification.goal_difference,
       });
     });
+
+    // Ordenar clasificaciones
+    for (const tournament in formattedClassifications) {
+      for (const group in formattedClassifications[tournament]) {
+        formattedClassifications[tournament][group].sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.goal_difference !== a.goal_difference)
+            return b.goal_difference - a.goal_difference;
+          if (b.favor_goals !== a.favor_goals)
+            return b.favor_goals - a.favor_goals;
+          return a.goals_against - b.goals_against;
+        });
+      }
+    }
 
     res.status(200).send({
       code: 200,

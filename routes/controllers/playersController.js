@@ -2,6 +2,10 @@ const fs = require("fs");
 const path = require("path");
 
 const playersPath = path.join(__dirname, "../../db/players.json");
+const teamsPath = path.join(__dirname, "../../db/teams.json");
+const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
+const groupsPath = path.join(__dirname, "../../db/groups.json");
+const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -29,14 +33,41 @@ const writeJSONData = (filePath, data) => {
 
 // Obtener todos los jugadores
 const getAllPlayers = async (req, res) => {
-  const players = await getJSONData(playersPath);
-
   try {
+    const [players, teams, teamsGroups, groups, tournaments] =
+      await Promise.all([
+        getJSONData(playersPath),
+        getJSONData(teamsPath),
+        getJSONData(teamsGroupsPath),
+        getJSONData(groupsPath),
+        getJSONData(tournamentsPath),
+      ]);
+
     if (players) {
+      const playersWithTeamAndTournament = players.map((player) => {
+        const team = teams.find((team) => team.id === player.id_team);
+        const teamGroup = teamsGroups.find(
+          (tg) => tg.id_team === player.id_team
+        );
+        const group = teamGroup
+          ? groups.find((g) => g.id === teamGroup.id_group)
+          : null;
+        const tournament = group
+          ? tournaments.find((t) => t.id === group.id_tournament)
+          : null;
+
+        return {
+          ...player,
+          team_name: team ? team.name : "Unknown Team",
+          tournament_name: tournament ? tournament.name : "Unknown Tournament",
+          tournament_year: tournament ? tournament.year : "Unknown Year",
+        };
+      });
+
       res.status(200).send({
         code: 200,
         message: "Players successfully obtained",
-        data: players,
+        data: playersWithTeamAndTournament,
       });
     } else {
       return res.status(500).send("Error reading players from file");
@@ -80,8 +111,8 @@ const createPlayer = async (req, res) => {
     };
     players.push(newPlayer);
     await writeJSONData(playersPath, players);
-    res.status(201).send({
-      code: 201,
+    res.status(200).send({
+      code: 200,
       message: "Player successfully created",
       data: newPlayer,
     });

@@ -2,13 +2,25 @@
   {
     "id": 1,
     "name": "Copa GoldSport",
-    "year": 2024,
-    "id_categoria": 1
+    "year": "2024 - 1",
+    "id_category": 1
   },
   {
     "id": 2,
-    "name": "Liga Nacional",
-    "year": 2024,
-    "id_categoria": 2
+    "name": "Copa GoldSport",
+    "year": "2024 - 2",
+    "id_category": 3
+  },
+  {
+    "id": 3,
+    "name": "Copa GoldSport",
+    "year": "2024 - 3",
+    "id_category": 5
+  },
+  {
+    "id": 4,
+    "name": "Copa GoldSport",
+    "year": "2024 - 4",
+    "id_category": 4
   }
 ]

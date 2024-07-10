@@ -2,6 +2,8 @@ const fs = require("fs");
 const path = require("path");
 
 const teamsPath = path.join(__dirname, "../../db/teams.json");
+const groupsPath = path.join(__dirname, "../../db/groups.json");
+const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -80,8 +82,8 @@ const createTeam = async (req, res) => {
     };
     teams.push(newTeam);
     await writeJSONData(teamsPath, teams);
-    res.status(201).send({
-      code: 201,
+    res.status(200).send({
+      code: 200,
       message: "Team successfully created",
       data: newTeam,
     });
@@ -132,10 +134,54 @@ const deleteTeam = async (req, res) => {
   }
 };
 
+// Obtener equipos por torneo
+const getTeamsByTournament = async (req, res) => {
+  try {
+    const { id_tournament } = req.params;
+
+    const teams = await getJSONData(teamsPath);
+    const teamsGroups = await getJSONData(teamsGroupsPath);
+    const groups = await getJSONData(groupsPath);
+
+    // Filtrar grupos por torneo
+    const tournamentGroups = groups.filter(
+      (group) => group.id_tournament === parseInt(id_tournament)
+    );
+
+    // Obtener ids de los grupos del torneo
+    const groupIds = tournamentGroups.map((group) => group.id);
+
+    // Filtrar equipos por grupos del torneo
+    const tournamentTeamsGroups = teamsGroups.filter((tg) =>
+      groupIds.includes(tg.id_group)
+    );
+
+    // Obtener ids de los equipos del torneo
+    const teamIds = tournamentTeamsGroups.map((tg) => tg.id_team);
+
+    // Filtrar equipos por ids
+    const tournamentTeams = teams
+      .filter((team) => teamIds.includes(team.id))
+      .map((team) => ({
+        id: team.id,
+        name: team.name,
+      }));
+
+    res.status(200).send({
+      code: 200,
+      message: "Teams successfully obtained for the tournament",
+      data: tournamentTeams,
+    });
+  } catch (err) {
+    res.status(500).send("Server error");
+  }
+};
+
 module.exports = {
   getAllTeams,
   getTeamByID,
   createTeam,
   updateTeam,
   deleteTeam,
+  getTeamsByTournament,
 };

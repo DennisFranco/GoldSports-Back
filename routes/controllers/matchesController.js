@@ -30,17 +30,42 @@ const writeJSONData = (filePath, data) => {
   });
 };
 
-// Helper function to get the date in Colombian timezone
 const getColombianDate = (date) => {
-  const utcDate = new Date(date);
-  const offset = -5; // Colombian time zone offset
-  const colombianDate = new Date(utcDate.getTime() + offset * 60 * 60 * 1000);
-  return colombianDate;
+  return new Date(
+    new Date(date).toLocaleDateString("en-US", { timeZone: "America/Bogota" })
+  );
+};
+
+const formatDate = (date) => {
+  const day = date
+    .toLocaleDateString("en-US", {
+      weekday: "short",
+      timeZone: "America/Bogota",
+    })
+    .toUpperCase();
+  const month = date
+    .toLocaleDateString("en-US", {
+      month: "short",
+      timeZone: "America/Bogota",
+    })
+    .toUpperCase();
+  const dayOfMonth = date.toLocaleDateString("en-US", {
+    day: "2-digit",
+    timeZone: "America/Bogota",
+  });
+  return `${day} ${dayOfMonth} ${month}.`;
 };
 
 // Obtener todos los partidos
 const getAllMatches = async (req, res) => {
   try {
+    const { date } = req.query;
+    const queryDate = date ? new Date(date) : new Date();
+    const startDate = new Date(queryDate);
+    startDate.setDate(queryDate.getDate() - 7);
+    const endDate = new Date(queryDate);
+    endDate.setDate(queryDate.getDate() + 7);
+
     const matches = await getJSONData(matchesPath);
     const fields = await getJSONData(fieldsPath);
     const tournaments = await getJSONData(tournamentsPath);
@@ -49,67 +74,88 @@ const getAllMatches = async (req, res) => {
     const formattedMatches = {};
 
     const today = getColombianDate(new Date());
+    const todayString = today.toISOString().split("T")[0];
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
+    const yesterdayString = yesterday.toISOString().split("T")[0];
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
+    const tomorrowString = tomorrow.toISOString().split("T")[0];
 
-    const formatDate = (date) => {
-      const day = date
-        .toLocaleDateString("es-ES", { weekday: "short" })
-        .toUpperCase();
-      const formattedDate = date
-        .toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })
-        .replace("/", " ");
-      return `${day} ${formattedDate}`;
-    };
-
-    matches.forEach((match) => {
-      const matchDate = getColombianDate(match.date);
+    // Generate keys for each day in the range
+    for (
+      let d = new Date(startDate);
+      d <= endDate;
+      d.setDate(d.getDate() + 1)
+    ) {
+      const matchDateString = getColombianDate(d).toISOString().split("T")[0];
       let formattedDate;
 
-      if (matchDate.toDateString() === today.toDateString()) {
+      if (matchDateString === todayString) {
         formattedDate = "HOY";
-      } else if (matchDate.toDateString() === yesterday.toDateString()) {
+      } else if (matchDateString === yesterdayString) {
         formattedDate = "AYER";
-      } else if (matchDate.toDateString() === tomorrow.toDateString()) {
+      } else if (matchDateString === tomorrowString) {
         formattedDate = "MAÑANA";
       } else {
-        formattedDate = formatDate(matchDate);
+        formattedDate = formatDate(new Date(d));
       }
-
-      const tournament =
-        tournaments.find((t) => t.id === match.id_tournament)?.name ||
-        "Unknown Tournament";
-      const place =
-        fields.find((f) => f.id === match.place)?.name || "Unknown Place";
-      const localTeam =
-        teams.find((t) => t.id === match.local_team)?.name || "Unknown Team";
-      const visitingTeam =
-        teams.find((t) => t.id === match.visiting_team)?.name || "Unknown Team";
 
       if (!formattedMatches[formattedDate]) {
         formattedMatches[formattedDate] = [];
       }
+    }
 
-      let tournamentMatches = formattedMatches[formattedDate].find(
-        (t) => t.tournament === tournament
+    matches.forEach((match) => {
+      let dateMatch = new Date(match.date);
+      const matchDate = getColombianDate(
+        dateMatch.setDate(dateMatch.getDate() + 1)
       );
-      if (!tournamentMatches) {
-        tournamentMatches = { tournament: tournament, matches: [] };
-        formattedMatches[formattedDate].push(tournamentMatches);
-      }
+      const matchDateString = matchDate.toISOString().split("T")[0];
 
-      tournamentMatches.matches.push({
-        round: match.round || "Unknown Round",
-        team1: localTeam,
-        team2: visitingTeam,
-        time:
-          match.status === "Finalizado"
-            ? `${match.local_result}-${match.visiting_result}`
-            : match.hour_start,
-        place,
-      });
+      if (matchDate >= startDate && matchDate <= endDate) {
+        let formattedDate;
+
+        if (matchDateString === todayString) {
+          formattedDate = "HOY";
+        } else if (matchDateString === yesterdayString) {
+          formattedDate = "AYER";
+        } else if (matchDateString === tomorrowString) {
+          formattedDate = "MAÑANA";
+        } else {
+          formattedDate = formatDate(matchDate);
+        }
+
+        const tournament =
+          tournaments.find((t) => t.id === match.id_tournament)?.name ||
+          "Unknown Tournament";
+        const place =
+          fields.find((f) => f.id === match.place)?.name || "Unknown Place";
+        const localTeam =
+          teams.find((t) => t.id === match.local_team)?.name || "Unknown Team";
+        const visitingTeam =
+          teams.find((t) => t.id === match.visiting_team)?.name ||
+          "Unknown Team";
+
+        let tournamentMatches = formattedMatches[formattedDate].find(
+          (t) => t.tournament === tournament
+        );
+        if (!tournamentMatches) {
+          tournamentMatches = { tournament: tournament, matches: [] };
+          formattedMatches[formattedDate].push(tournamentMatches);
+        }
+
+        tournamentMatches.matches.push({
+          round: match.round || "Unknown Round",
+          team1: localTeam,
+          team2: visitingTeam,
+          time:
+            match.status === "Finalizado"
+              ? `${match.local_result}-${match.visiting_result}`
+              : match.hour_start,
+          place,
+        });
+      }
     });
 
     res.status(200).send({
@@ -156,8 +202,8 @@ const createMatch = async (req, res) => {
     };
     matches.push(newMatch);
     await writeJSONData(matchesPath, matches);
-    res.status(201).send({
-      code: 201,
+    res.status(200).send({
+      code: 200,
       message: "Match successfully created",
       data: newMatch,
     });
@@ -219,3 +265,4 @@ module.exports = {
   updateMatch,
   deleteMatch,
 };
+//(e.g., Programado, En Curso, Finalizado, Cancelado, Aplazado, Walkover)
