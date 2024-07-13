@@ -18,5 +18,10 @@
     "id": 4,
     "status": "Enabled",
     "description": "The player is available to play."
+  },
+  {
+    "id": 5,
+    "status": "Low",
+    "description": "The player was discharged."
   }
 ]

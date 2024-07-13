@@ -5,6 +5,8 @@ const matchesPath = path.join(__dirname, "../../db/matches.json");
 const fieldsPath = path.join(__dirname, "../../db/fields.json");
 const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
 const teamsPath = path.join(__dirname, "../../db/teams.json");
+const playersPath = path.join(__dirname, "../../db/players.json");
+const eventsPath = path.join(__dirname, "../../db/events.json");
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -146,6 +148,8 @@ const getAllMatches = async (req, res) => {
         }
 
         tournamentMatches.matches.push({
+          id: match.id,
+          id_tournament: match.id_tournament,
           round: match.round || "Unknown Round",
           team1: localTeam,
           team2: visitingTeam,
@@ -187,6 +191,94 @@ const getMatchByID = async (req, res) => {
     } else {
       return res.status(500).send("Error reading matches from file");
     }
+  } catch (err) {
+    res.status(500).send("Server error");
+  }
+};
+
+const getMatchData = async (req, res) => {
+  try {
+    const [matches, teams, players, events] = await Promise.all([
+      getJSONData(matchesPath),
+      getJSONData(teamsPath),
+      getJSONData(playersPath),
+      getJSONData(eventsPath),
+    ]);
+
+    const match = matches.find((m) => m.id === parseInt(req.params.id));
+    if (!match) {
+      return res.status(404).send("Match not found");
+    }
+
+    const homeTeam = teams.find((t) => t.id === match.local_team);
+    const awayTeam = teams.find((t) => t.id === match.visiting_team);
+
+    if (!homeTeam || !awayTeam) {
+      return res.status(404).send("Teams not found");
+    }
+
+    const homePlayers = players.filter((p) => p.id_team === homeTeam.id);
+    const awayPlayers = players.filter((p) => p.id_team === awayTeam.id);
+
+    const matchEvents = events
+      .filter((e) => e.id_match === match.id)
+      .map((e) => {
+        const player = players.find((p) => p.id === e.id_player);
+        return {
+          id: e.id,
+          player: player ? player.name : "Unknown Player",
+          minute: `${e.minute}'`,
+          team: homePlayers.find((p) => p.id === e.id_player) ? "home" : "away",
+          type: e.id_event_type,
+        };
+      });
+
+    let dateMatch = new Date(match.date);
+    const matchDate = getColombianDate(
+      dateMatch.setDate(dateMatch.getDate() + 1)
+    );
+
+    const matchData = {
+      homeTeam: {
+        id: homeTeam.id,
+        manager: homeTeam.manager_name,
+        name: homeTeam.name,
+        logo: homeTeam.logo,
+        formation: "4-3-3", // Example formation, update as needed
+        players: homePlayers.map((p) => ({
+          id: p.id,
+          name: p.name,
+          position: p.position,
+          number: p.number,
+          status: p.status,
+        })),
+      },
+      awayTeam: {
+        id: awayTeam.id,
+        manager: awayTeam.manager_name,
+        name: awayTeam.name,
+        logo: awayTeam.logo,
+        formation: "4-3-3", // Example formation, update as needed
+        players: awayPlayers.map((p) => ({
+          id: p.id,
+          name: p.name,
+          position: p.position,
+          number: p.number,
+          status: p.status,
+        })),
+      },
+      hour: match.hour_start,
+      score: `${match.local_result} - ${match.visiting_result}`,
+      date: formatDate(matchDate),
+      status: match.status,
+      events: matchEvents,
+    };
+
+    res.status(200).send({
+      code: 200,
+      message: "Match data successfully obtained",
+      data: matchData,
+    });
   } catch (err) {
     res.status(500).send("Server error");
   }
@@ -264,5 +356,6 @@ module.exports = {
   createMatch,
   updateMatch,
   deleteMatch,
+  getMatchData,
 };
-//(e.g., Programado, En Curso, Finalizado, Cancelado, Aplazado, Walkover)
+//(e.g.,  1 Programado, 4 En Curso, 5 Finalizado, 2 Cancelado, 3 Aplazado, 6 Walkover)

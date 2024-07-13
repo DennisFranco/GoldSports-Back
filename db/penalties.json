@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "id_player": 1,
+    "description": "Suspendido por acumulación de tarjetas amarillas",
+    "sanction_duration": 1,
+    "status": "Vigente"
+  },
+  {
+    "id": 2,
+    "id_player": 2,
+    "description": "Suspendido por conducta violenta",
+    "sanction_duration": 2,
+    "status": "Cumplida"
+  }
+]

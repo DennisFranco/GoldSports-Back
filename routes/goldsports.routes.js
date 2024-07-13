@@ -10,6 +10,10 @@ const classificationsController = require("./controllers/classificationsControll
 const tournamentController = require("./controllers/tournamentController.js");
 const categoriesController = require("./controllers/categoriesController.js");
 const groupsController = require("./controllers/groupsController.js");
+const eventsController = require("./controllers/eventsController.js");
+const matchSheetController = require("./controllers/matchSheetController.js");
+const refereesController = require("./controllers/refereesController.js");
+const matchPlayerNumberController = require("./controllers/matchPlayerNumberController.js");
 
 function verificarToken(req, res, next) {
   const bearerHeader = req.headers["authorization"];
@@ -49,6 +53,7 @@ router
   .delete("/teams/:id", teamsController.deleteTeam)
   .get("/matches", matchesController.getAllMatches)
   .get("/matches/:id", matchesController.getMatchByID)
+  .get("/matchData/:id", matchesController.getMatchData)
   .post("/matches", matchesController.createMatch)
   .put("/matches/:id", matchesController.updateMatch)
   .delete("/matches/:id", matchesController.deleteMatch)
@@ -79,6 +84,22 @@ router
   .post("/groups", groupsController.createGroup)
   .put("/groups/:id", groupsController.updateGroup)
   .delete("/groups/:id", groupsController.deleteGroup)
+  .get("/events", eventsController.getAllEvents)
+  .get("/events/:id", eventsController.getEventByID)
+  .post("/events", eventsController.createEvent)
+  .put("/events/:id", eventsController.updateEvent)
+  .delete("/events/:id", eventsController.deleteEvent)
+  .get("/matchSheet", matchSheetController.getAllMatchSheets)
+  .get("/matchSheet/:id", matchSheetController.getAllMatchSheets)
+  .post("/matchSheet", matchSheetController.createMatchSheet)
+  .put("/matchSheet/:id", matchSheetController.updateMatchSheet)
+  .delete("/matchSheet/:id", matchSheetController.deleteMatchSheet)
+  .get("/referees", refereesController.getAllReferees)
+  .get("/referees/:id", refereesController.getRefereeByID)
+  .post("/referees", refereesController.createReferee)
+  .put("/referees/:id", refereesController.updateReferee)
+  .delete("/referees/:id", refereesController.deleteReferee)
+  .post("/matchPlayersNumbers/:id", matchPlayerNumberController.createMatchPlayerNumbers)
   .get("/classifications", classificationsController.getAllClassifications);
-
+  
 module.exports = router;

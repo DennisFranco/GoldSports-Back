@@ -2,15 +2,50 @@
   {
     "id": 1,
     "id_match": 1,
-    "id_player": 1,
-    "id_event_type": 1,
-    "minute": 30
+    "id_player": 0,
+    "id_event_type": 5,
+    "minute": 0
   },
   {
-    "id": 1,
+    "id": 2,
     "id_match": 1,
     "id_player": 1,
+    "id_event_type": 1,
+    "minute": 0
+  },
+  {
+    "id": 3,
+    "id_match": 1,
+    "id_player": 31,
+    "id_event_type": 1,
+    "minute": 0
+  },
+  {
+    "id": 4,
+    "id_match": 1,
+    "id_player": 3,
+    "id_event_type": 1,
+    "minute": 0
+  },
+  {
+    "id": 5,
+    "id_match": 1,
+    "id_player": 32,
+    "id_event_type": 1,
+    "minute": 0
+  },
+  {
+    "id": 6,
+    "id_match": 1,
+    "id_player": 5,
     "id_event_type": 2,
-    "minute": 30
+    "minute": 0
+  },
+  {
+    "id": 7,
+    "id_match": 1,
+    "id_player": 43,
+    "id_event_type": 3,
+    "minute": 0
   }
 ]
