@@ -8,5 +8,10 @@
     "id": 2,
     "id_team": 2,
     "id_group": 1
+  },
+  {
+    "id": 3,
+    "id_team": 4,
+    "id_group": 1
   }
 ]

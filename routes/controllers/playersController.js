@@ -6,6 +6,7 @@ const teamsPath = path.join(__dirname, "../../db/teams.json");
 const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
 const groupsPath = path.join(__dirname, "../../db/groups.json");
 const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
+const playerStatsPath = path.join(__dirname, "../../db/player_stats.json");
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -79,16 +80,44 @@ const getAllPlayers = async (req, res) => {
 
 // Obtener un jugador por ID
 const getPlayerByID = async (req, res) => {
-  const players = await getJSONData(playersPath);
-
   try {
+    const [players, teams, teamsGroups, groups, tournaments, playerStats] =
+      await Promise.all([
+        getJSONData(playersPath),
+        getJSONData(teamsPath),
+        getJSONData(teamsGroupsPath),
+        getJSONData(groupsPath),
+        getJSONData(tournamentsPath),
+        getJSONData(playerStatsPath),
+      ]);
+
     if (players) {
       const player = players.find((p) => p.id === parseInt(req.params.id));
       if (player) {
+        const team = teams.find((team) => team.id === player.id_team);
+        const teamGroup = teamsGroups.find(
+          (tg) => tg.id_team === player.id_team
+        );
+        const group = teamGroup
+          ? groups.find((g) => g.id === teamGroup.id_group)
+          : null;
+        const tournament = group
+          ? tournaments.find((t) => t.id === group.id_tournament)
+          : null;
+        const stats = playerStats.filter(
+          (stat) => stat.id_player === player.id
+        );
+
         res.status(200).send({
           code: 200,
           message: "Player successfully obtained",
-          data: player,
+          data: {
+            ...player,
+            team_name: team ? team.name : "Unknown Team",
+            tournament_name: tournament ? tournament.name : "Unknown Tournament",
+            tournament_year: tournament ? tournament.year : "Unknown Year",
+            stats,
+          },
         });
       } else {
         res.status(404).send("Player not found");

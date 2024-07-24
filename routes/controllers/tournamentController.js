@@ -185,12 +185,19 @@ const getTournamentByID = async (req, res) => {
             .map((tg) => teams.find((t) => t.id === tg.id_team))
             .filter((team) => team !== undefined);
 
-          if (groupTeams.length > 0) {
-            acc[group.name] = groupTeams;
-          }
+          acc[group.name] = groupTeams;
         }
         return acc;
       }, {});
+
+      // Incluir todos los grupos del torneo, incluso si no tienen equipos asignados
+      groups
+        .filter((group) => group.id_tournament === tournament.id)
+        .forEach((group) => {
+          if (!tournamentTeamsByGroup[group.name]) {
+            tournamentTeamsByGroup[group.name] = [];
+          }
+        });
 
       const response = {
         INFORMACIÓN: {
@@ -214,6 +221,7 @@ const getTournamentByID = async (req, res) => {
       res.status(404).send("Tournament not found");
     }
   } catch (err) {
+    console.error("Error in getTournamentByID:", err);
     res.status(500).send("Server error");
   }
 };
@@ -267,10 +275,68 @@ const updateTournament = async (req, res) => {
 // Eliminar un torneo por ID
 const deleteTournament = async (req, res) => {
   try {
-    const tournaments = await getJSONData(tournamentsPath);
-    const tournamentIndex = tournaments.findIndex(
-      (t) => t.id === parseInt(req.params.id)
+    const [tournaments, matches, groups, classifications, teamsGroups] =
+      await Promise.all([
+        getJSONData(tournamentsPath),
+        getJSONData(matchesPath),
+        getJSONData(groupsPath),
+        getJSONData(classificationsPath),
+        getJSONData(teamsGroupsPath),
+      ]);
+
+    const tournamentId = parseInt(req.params.id);
+
+    // Verificar si hay partidos asignados al torneo
+    const hasMatches = matches.some(
+      (match) => match.id_tournament === tournamentId
     );
+    if (hasMatches) {
+      return res.status(400).send({
+        code: 400,
+        message:
+          "Cannot delete tournament: there are matches assigned to this tournament",
+      });
+    }
+
+    // Verificar si hay grupos creados para el torneo
+    const hasGroups = groups.some(
+      (group) => group.id_tournament === tournamentId
+    );
+    if (hasGroups) {
+      return res.status(400).send({
+        code: 400,
+        message:
+          "Cannot delete tournament: there are groups created for this tournament",
+      });
+    }
+
+    // Verificar si hay clasificaciones relacionadas con el torneo
+    const hasClassifications = classifications.some(
+      (classification) => classification.id_tournament === tournamentId
+    );
+    if (hasClassifications) {
+      return res.status(400).send({
+        code: 400,
+        message:
+          "Cannot delete tournament: there are classifications related to this tournament",
+      });
+    }
+
+    // Verificar si hay equipos en grupos relacionados con el torneo
+    const hasTeamsInGroups = teamsGroups.some((teamGroup) => {
+      const group = groups.find((g) => g.id === teamGroup.id_group);
+      return group && group.id_tournament === tournamentId;
+    });
+    if (hasTeamsInGroups) {
+      return res.status(400).send({
+        code: 400,
+        message:
+          "Cannot delete tournament: there are teams assigned to groups in this tournament",
+      });
+    }
+
+    // Eliminar el torneo si no tiene datos relacionados
+    const tournamentIndex = tournaments.findIndex((t) => t.id === tournamentId);
     if (tournamentIndex !== -1) {
       const deletedTournament = tournaments.splice(tournamentIndex, 1);
       await writeJSONData(tournamentsPath, tournaments);
@@ -283,6 +349,7 @@ const deleteTournament = async (req, res) => {
       res.status(404).send("Tournament not found");
     }
   } catch (err) {
+    console.error("Error in deleteTournament:", err);
     res.status(500).send("Server error");
   }
 };

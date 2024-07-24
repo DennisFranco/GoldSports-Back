@@ -7,6 +7,10 @@ const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
 const teamsPath = path.join(__dirname, "../../db/teams.json");
 const playersPath = path.join(__dirname, "../../db/players.json");
 const eventsPath = path.join(__dirname, "../../db/events.json");
+const matchPlayersNumberPath = path.join(
+  __dirname,
+  "../../db/match_players_number.json"
+);
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -154,10 +158,11 @@ const getAllMatches = async (req, res) => {
           team1: localTeam,
           team2: visitingTeam,
           time:
-            match.status === "Finalizado"
+            match.status === 5
               ? `${match.local_result}-${match.visiting_result}`
               : match.hour_start,
           place,
+          status: match.status,
         });
       }
     });
@@ -198,12 +203,14 @@ const getMatchByID = async (req, res) => {
 
 const getMatchData = async (req, res) => {
   try {
-    const [matches, teams, players, events] = await Promise.all([
-      getJSONData(matchesPath),
-      getJSONData(teamsPath),
-      getJSONData(playersPath),
-      getJSONData(eventsPath),
-    ]);
+    const [matches, teams, players, events, matchPlayersNumbers] =
+      await Promise.all([
+        getJSONData(matchesPath),
+        getJSONData(teamsPath),
+        getJSONData(playersPath),
+        getJSONData(eventsPath),
+        getJSONData(matchPlayersNumberPath),
+      ]);
 
     const match = matches.find((m) => m.id === parseInt(req.params.id));
     if (!match) {
@@ -233,6 +240,21 @@ const getMatchData = async (req, res) => {
         };
       });
 
+    const matchPlayersNumbersMap = matchPlayersNumbers.reduce((acc, mpn) => {
+      if (mpn.id_match === match.id) {
+        acc[mpn.id_player] = mpn.number;
+      }
+      return acc;
+    }, {});
+
+    const formatPlayer = (player) => ({
+      id: player.id,
+      name: player.name,
+      position: player.position,
+      number: matchPlayersNumbersMap[player.id] || player.number,
+      status: player.status,
+    });
+
     let dateMatch = new Date(match.date);
     const matchDate = getColombianDate(
       dateMatch.setDate(dateMatch.getDate() + 1)
@@ -245,13 +267,7 @@ const getMatchData = async (req, res) => {
         name: homeTeam.name,
         logo: homeTeam.logo,
         formation: "4-3-3", // Example formation, update as needed
-        players: homePlayers.map((p) => ({
-          id: p.id,
-          name: p.name,
-          position: p.position,
-          number: p.number,
-          status: p.status,
-        })),
+        players: homePlayers.map(formatPlayer),
       },
       awayTeam: {
         id: awayTeam.id,
@@ -259,13 +275,7 @@ const getMatchData = async (req, res) => {
         name: awayTeam.name,
         logo: awayTeam.logo,
         formation: "4-3-3", // Example formation, update as needed
-        players: awayPlayers.map((p) => ({
-          id: p.id,
-          name: p.name,
-          position: p.position,
-          number: p.number,
-          status: p.status,
-        })),
+        players: awayPlayers.map(formatPlayer),
       },
       hour: match.hour_start,
       score: `${match.local_result} - ${match.visiting_result}`,

@@ -3,14 +3,32 @@
     "id": 1,
     "id_tournament": 1,
     "round": 4,
-    "date": "2024-07-14",
+    "date": "2024-07-22",
     "hour_start": "14:00",
     "place": 1,
+    "team_refereeing": 0,
+    "delegates": "",
     "local_team": 1,
     "visiting_team": 2,
     "local_result": 2,
-    "visiting_result": 2,
-    "status": 4,
-    "status_reason": ""
+    "visiting_result": 0,
+    "status": 5,
+    "referee": "Árbitro partido 1",
+    "id_planner": 1,
+    "observations": ""
+  },
+  {
+    "id": 2,
+    "id_tournament": 1,
+    "round": 7,
+    "date": "2024-07-23",
+    "hour_start": "05:00",
+    "place": 2,
+    "local_team": 1,
+    "visiting_team": 4,
+    "local_result": 0,
+    "visiting_result": 0,
+    "status": 1,
+    "observations": ""
   }
 ]

@@ -11,9 +11,10 @@ const tournamentController = require("./controllers/tournamentController.js");
 const categoriesController = require("./controllers/categoriesController.js");
 const groupsController = require("./controllers/groupsController.js");
 const eventsController = require("./controllers/eventsController.js");
-const matchSheetController = require("./controllers/matchSheetController.js");
 const refereesController = require("./controllers/refereesController.js");
 const matchPlayerNumberController = require("./controllers/matchPlayerNumberController.js");
+const playerStatsController = require("./controllers/playerStatsController.js");
+const penaltiesController = require("./controllers/penaltiesController.js");
 
 function verificarToken(req, res, next) {
   const bearerHeader = req.headers["authorization"];
@@ -46,6 +47,7 @@ router
   .put("/players/:id", playersController.updatePlayer)
   .delete("/players/:id", playersController.deletePlayer)
   .get("/teams", teamsController.getAllTeams)
+  .get("/teamsWithoutGroup", teamsController.getTeamsWithoutGroup)
   .get("/teams/:id", teamsController.getTeamByID)
   .get("/teams/tournament/:id_tournament", teamsController.getTeamsByTournament)
   .post("/teams", teamsController.createTeam)
@@ -81,7 +83,9 @@ router
   )
   .get("/groups", groupsController.getAllGroups)
   .get("/groups/:id", groupsController.getGroupByID)
+  .get("/groupsByTournament/:id", groupsController.getGroupsByTournamentID)
   .post("/groups", groupsController.createGroup)
+  .post("/groups/teams", groupsController.createTeamGroup)
   .put("/groups/:id", groupsController.updateGroup)
   .delete("/groups/:id", groupsController.deleteGroup)
   .get("/events", eventsController.getAllEvents)
@@ -89,17 +93,34 @@ router
   .post("/events", eventsController.createEvent)
   .put("/events/:id", eventsController.updateEvent)
   .delete("/events/:id", eventsController.deleteEvent)
-  .get("/matchSheet", matchSheetController.getAllMatchSheets)
-  .get("/matchSheet/:id", matchSheetController.getAllMatchSheets)
-  .post("/matchSheet", matchSheetController.createMatchSheet)
-  .put("/matchSheet/:id", matchSheetController.updateMatchSheet)
-  .delete("/matchSheet/:id", matchSheetController.deleteMatchSheet)
   .get("/referees", refereesController.getAllReferees)
   .get("/referees/:id", refereesController.getRefereeByID)
   .post("/referees", refereesController.createReferee)
   .put("/referees/:id", refereesController.updateReferee)
   .delete("/referees/:id", refereesController.deleteReferee)
-  .post("/matchPlayersNumbers/:id", matchPlayerNumberController.createMatchPlayerNumbers)
-  .get("/classifications", classificationsController.getAllClassifications);
-  
+  .post(
+    "/matchPlayersNumbers/:idMatch",
+    matchPlayerNumberController.createMatchPlayerNumbers
+  )
+  .get("/classifications", classificationsController.getAllClassifications)
+  .get("/playerStats", playerStatsController.getAllPlayerStats)
+  .get(
+    "/playerStats/:playerId/tournament/:tournamentId",
+    playerStatsController.getPlayerStatsByPlayerAndTournament
+  )
+  .post("/playerStats", playerStatsController.createPlayerStats)
+  .put(
+    "/playerStats/:playerId/tournament/:tournamentId",
+    playerStatsController.updatePlayerStats
+  )
+  .delete(
+    "/playerStats/:playerId/tournament/:tournamentId",
+    playerStatsController.deletePlayerStats
+  )
+  .get("/penalties", penaltiesController.getAllPenalties)
+  .get("/penalties/:id", penaltiesController.getPenaltyByID)
+  .post("/penalties", penaltiesController.createPenalty)
+  .put("/penalties/:id", penaltiesController.updatePenalty)
+  .delete("/penalties/:id", penaltiesController.deletePenalty);
+
 module.exports = router;

@@ -86,7 +86,7 @@ const createMatchPlayerNumbers = async (req, res) => {
     const newEntries = Object.entries(req.body).map(
       ([id_player, number], index) => ({
         id: matchPlayersNumbers.length + index + 1,
-        id_match_sheet: parseInt(req.params.id),
+        id_match: parseInt(req.params.idMatch),
         id_player: parseInt(id_player),
         number: number,
       })
@@ -103,71 +103,8 @@ const createMatchPlayerNumbers = async (req, res) => {
   }
 };
 
-// Actualizar números de jugadores en partido
-const updateMatchPlayerNumbers = async (req, res) => {
-  try {
-    const matchPlayersNumbers = await getJSONData(matchPlayersNumberPath);
-    Object.entries(req.body).forEach(([id_player, number]) => {
-      const index = matchPlayersNumbers.findIndex(
-        (mpn) =>
-          mpn.id_player === parseInt(id_player) &&
-          mpn.id_match_sheet === parseInt(req.params.id_match_sheet)
-      );
-      if (index !== -1) {
-        matchPlayersNumbers[index].number = number;
-      } else {
-        const newEntry = {
-          id: matchPlayersNumbers.length + 1,
-          id_match_sheet: parseInt(req.params.id_match_sheet),
-          id_player: parseInt(id_player),
-          number: number,
-        };
-        matchPlayersNumbers.push(newEntry);
-      }
-    });
-    await writeJSONData(matchPlayersNumberPath, matchPlayersNumbers);
-    res.status(200).send({
-      code: 200,
-      message: "Match player numbers successfully updated",
-      data: matchPlayersNumbers.filter(
-        (mpn) => mpn.id_match_sheet === parseInt(req.params.id_match_sheet)
-      ),
-    });
-  } catch (err) {
-    res.status(500).send("Server error");
-  }
-};
-
-// Eliminar un número de jugador en partido por ID
-const deleteMatchPlayerNumber = async (req, res) => {
-  try {
-    const matchPlayersNumbers = await getJSONData(matchPlayersNumberPath);
-    const matchPlayerNumberIndex = matchPlayersNumbers.findIndex(
-      (mpn) => mpn.id === parseInt(req.params.id)
-    );
-    if (matchPlayerNumberIndex !== -1) {
-      const deletedMatchPlayerNumber = matchPlayersNumbers.splice(
-        matchPlayerNumberIndex,
-        1
-      );
-      await writeJSONData(matchPlayersNumberPath, matchPlayersNumbers);
-      res.status(200).send({
-        code: 200,
-        message: "Match player number successfully deleted",
-        data: deletedMatchPlayerNumber,
-      });
-    } else {
-      res.status(404).send("Match player number not found");
-    }
-  } catch (err) {
-    res.status(500).send("Server error");
-  }
-};
-
 module.exports = {
   getAllMatchPlayersNumbers,
   getMatchPlayerNumberByID,
-  createMatchPlayerNumbers,
-  updateMatchPlayerNumbers,
-  deleteMatchPlayerNumber,
+  createMatchPlayerNumbers
 };

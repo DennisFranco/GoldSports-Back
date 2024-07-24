@@ -3,6 +3,11 @@ const path = require("path");
 
 const groupsPath = path.join(__dirname, "../../db/groups.json");
 const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
+const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
+const classificationsPath = path.join(
+  __dirname,
+  "../../db/classifications.json"
+);
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -97,6 +102,36 @@ const getGroupByID = async (req, res) => {
   }
 };
 
+// Obtener grupos por ID de torneo
+const getGroupsByTournamentID = async (req, res) => {
+  try {
+    const [groups, tournaments] = await Promise.all([
+      getJSONData(groupsPath),
+      getJSONData(tournamentsPath),
+    ]);
+
+    const tournament = tournaments.find(
+      (t) => t.id === parseInt(req.params.id)
+    );
+    if (!tournament) {
+      return res.status(404).send("Tournament not found");
+    }
+
+    const tournamentGroups = groups.filter(
+      (group) => group.id_tournament === tournament.id
+    );
+
+    res.status(200).send({
+      code: 200,
+      message: "Groups successfully obtained",
+      data: tournamentGroups,
+    });
+  } catch (err) {
+    console.error("Error in getGroupsByTournamentID:", err);
+    res.status(500).send("Server error");
+  }
+};
+
 // Crear un nuevo grupo
 const createGroup = async (req, res) => {
   try {
@@ -113,6 +148,83 @@ const createGroup = async (req, res) => {
       data: newGroup,
     });
   } catch (err) {
+    res.status(500).send("Server error");
+  }
+};
+
+// Crear un nuevo registro en teams_groups
+const createTeamGroup = async (req, res) => {
+  try {
+    const [teamsGroups, classifications, groups] = await Promise.all([
+      getJSONData(teamsGroupsPath),
+      getJSONData(classificationsPath),
+      getJSONData(groupsPath),
+    ]);
+
+    const { id_team, id_group } = req.body;
+
+    // Validar que los campos necesarios están presentes
+    if (!id_team || !id_group) {
+      return res.status(400).send({
+        code: 400,
+        message: "id_team and id_group are required fields",
+      });
+    }
+
+    const group = groups.find((g) => g.id === id_group);
+    if (!group) {
+      return res.status(404).send({
+        code: 404,
+        message: "Group not found",
+      });
+    }
+
+    // Crear un nuevo registro en teams_groups
+    const newTeamGroup = {
+      id: teamsGroups.length + 1,
+      id_team,
+      id_group,
+    };
+
+    // Añadir el nuevo registro al array
+    teamsGroups.push(newTeamGroup);
+
+    // Crear un nuevo registro en classifications
+    const newClassification = {
+      id: classifications.length + 1,
+      id_tournament: group.id_tournament,
+      id_group,
+      id_team,
+      points: 0,
+      matches_played: 0,
+      matches_won: 0,
+      tied_matches: 0,
+      lost_matches: 0,
+      favor_goals: 0,
+      goals_against: 0,
+      goal_difference: 0,
+    };
+
+    // Añadir el nuevo registro al array de classifications
+    classifications.push(newClassification);
+
+    // Escribir los datos actualizados en los archivos
+    await Promise.all([
+      writeJSONData(teamsGroupsPath, teamsGroups),
+      writeJSONData(classificationsPath, classifications),
+    ]);
+
+    // Responder con el nuevo registro creado
+    res.status(200).send({
+      code: 200,
+      message: "Team group and classification successfully created",
+      data: {
+        teamGroup: newTeamGroup,
+        classification: newClassification,
+      },
+    });
+  } catch (err) {
+    console.error("Error in createTeamGroup:", err);
     res.status(500).send("Server error");
   }
 };
@@ -167,6 +279,8 @@ module.exports = {
   getAllGroups,
   getGroupByID,
   createGroup,
+  createTeamGroup,
   updateGroup,
   deleteGroup,
+  getGroupsByTournamentID,
 };
