@@ -1,17 +1,72 @@
 [
   {
-    "id": 1,
+    "id": 4,
+    "id_team": 3,
+    "id_group": 5
+  },
+  {
+    "id": 5,
     "id_team": 1,
-    "id_group": 1
+    "id_group": 5
   },
   {
-    "id": 2,
+    "id": 6,
+    "id_team": 6,
+    "id_group": 5
+  },
+  {
+    "id": 7,
+    "id_team": 12,
+    "id_group": 5
+  },
+  {
+    "id": 8,
     "id_team": 2,
+    "id_group": 5
+  },
+  {
+    "id": 9,
+    "id_team": 4,
+    "id_group": 5
+  },
+  {
+    "id": 10,
+    "id_team": 8,
+    "id_group": 5
+  },
+  {
+    "id": 8,
+    "id_team": 35,
     "id_group": 1
   },
   {
-    "id": 3,
-    "id_team": 4,
+    "id": 9,
+    "id_team": 34,
+    "id_group": 1
+  },
+  {
+    "id": 10,
+    "id_team": 33,
+    "id_group": 1
+  },
+  {
+    "id": 11,
+    "id_team": 25,
+    "id_group": 1
+  },
+  {
+    "id": 12,
+    "id_team": 24,
+    "id_group": 1
+  },
+  {
+    "id": 13,
+    "id_team": 32,
+    "id_group": 1
+  },
+  {
+    "id": 14,
+    "id_team": 31,
     "id_group": 1
   }
 ]

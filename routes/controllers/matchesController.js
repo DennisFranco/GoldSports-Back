@@ -11,6 +11,7 @@ const matchPlayersNumberPath = path.join(
   __dirname,
   "../../db/match_players_number.json"
 );
+const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -224,8 +225,14 @@ const getMatchData = async (req, res) => {
       return res.status(404).send("Teams not found");
     }
 
-    const homePlayers = players.filter((p) => p.id_team === homeTeam.id);
-    const awayPlayers = players.filter((p) => p.id_team === awayTeam.id);
+    const homePlayers = players.filter(
+      (p) =>
+        p.id_team === homeTeam.id && p.tournaments.includes(match.id_tournament)
+    );
+    const awayPlayers = players.filter(
+      (p) =>
+        p.id_team === awayTeam.id && p.tournaments.includes(match.id_tournament)
+    );
 
     const matchEvents = events
       .filter((e) => e.id_match === match.id)
@@ -290,14 +297,78 @@ const getMatchData = async (req, res) => {
       data: matchData,
     });
   } catch (err) {
+    console.error("Error in getMatchData:", err);
     res.status(500).send("Server error");
   }
 };
 
-// Crear un nuevo partido
 const createMatch = async (req, res) => {
   try {
     const matches = await getJSONData(matchesPath);
+    const {
+      local_team,
+      visiting_team,
+      id_tournament,
+      date,
+      hour_start,
+      place,
+    } = req.body;
+
+    // Verificar si ya existe un partido entre los mismos equipos en el mismo torneo
+    const existingMatchBetweenTeams = matches.find(
+      (match) =>
+        ((match.local_team === local_team &&
+          match.visiting_team === visiting_team) ||
+          (match.local_team === visiting_team &&
+            match.visiting_team === local_team)) &&
+        match.id_tournament === id_tournament
+    );
+
+    if (existingMatchBetweenTeams) {
+      return res.status(400).send({
+        code: 400,
+        message:
+          "A match between these teams in the same tournament already exists",
+      });
+    }
+
+    // Verificar si ya existe un partido en la misma fecha, hora y cancha
+    const existingMatchSameDateTimePlace = matches.find(
+      (match) =>
+        match.date === date &&
+        match.hour_start === hour_start &&
+        match.place === place
+    );
+
+    if (existingMatchSameDateTimePlace) {
+      return res.status(400).send({
+        code: 400,
+        message: "A match at the same date, time, and place already exists",
+      });
+    }
+
+    // Verificar si ya existe un partido en la misma fecha y cancha con una diferencia de menos de 2 horas
+    const hourStart = new Date(`${date}T${hour_start}:00Z`).getTime();
+    const twoHoursInMillis = 2 * 60 * 60 * 1000;
+
+    const existingMatchWithinTwoHours = matches.find((match) => {
+      if (match.date === date && match.place === place) {
+        const matchStartTime = new Date(
+          `${match.date}T${match.hour_start}:00Z`
+        ).getTime();
+        return Math.abs(matchStartTime - hourStart) < twoHoursInMillis;
+      }
+      return false;
+    });
+
+    if (existingMatchWithinTwoHours) {
+      return res.status(400).send({
+        code: 400,
+        message:
+          "A match at the same place and date cannot be created within 2 hours of another match",
+      });
+    }
+
     const newMatch = {
       id: matches.length + 1,
       ...req.body,
@@ -310,6 +381,7 @@ const createMatch = async (req, res) => {
       data: newMatch,
     });
   } catch (err) {
+    console.error("Error in createMatch:", err);
     res.status(500).send("Server error");
   }
 };

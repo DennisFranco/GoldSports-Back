@@ -36,6 +36,8 @@ router
   .post("/login", usersController.loginUser)
   .get("/users", usersController.getAllUsers)
   .get("/roles", usersController.getAllRoles)
+  .post("/users", usersController.createUser)
+  .put("/users/:id", usersController.editUser)
   .get("/fields", fieldsController.getAllFields)
   .get("/fields/:id", fieldsController.getFieldByID)
   .post("/fields", fieldsController.createField)
@@ -44,12 +46,21 @@ router
   .get("/players", playersController.getAllPlayers)
   .get("/players/:id", playersController.getPlayerByID)
   .post("/players", playersController.createPlayer)
+  .post("/players/addTournament", playersController.addTournamentToPlayer)
+  .post(
+    "/removeTournamentFromPlayer",
+    playersController.removeTournamentFromPlayer
+  )
   .put("/players/:id", playersController.updatePlayer)
   .delete("/players/:id", playersController.deletePlayer)
   .get("/teams", teamsController.getAllTeams)
-  .get("/teamsWithoutGroup", teamsController.getTeamsWithoutGroup)
+  .get("/teamsWithoutGroup/:tournamentId", teamsController.getTeamsWithoutGroup)
   .get("/teams/:id", teamsController.getTeamByID)
   .get("/teams/tournament/:id_tournament", teamsController.getTeamsByTournament)
+  .get(
+    "/players/tournament/:tournamentId/team/:teamId",
+    teamsController.getPlayersByTournamentAndTeam
+  )
   .post("/teams", teamsController.createTeam)
   .put("/teams/:id", teamsController.updateTeam)
   .delete("/teams/:id", teamsController.deleteTeam)

@@ -16,5 +16,14 @@
     "role": 2,
     "status": 1,
     "phoneNumber": "+1234567890"
+  },
+  {
+    "id": 3,
+    "name": "Delegado 2",
+    "email": "Delegado2@mail.com",
+    "password": "$2a$12$JRiLq7MzXp6/B3TpXYE27OTSmvjrwIeGxzCcgq9/KCXxsa0GdRa56",
+    "role": 2,
+    "status": 2,
+    "phoneNumber": "3167485800"
   }
 ]

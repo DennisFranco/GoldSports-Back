@@ -74,18 +74,37 @@ const getCategoryByID = async (req, res) => {
 const createCategory = async (req, res) => {
   try {
     const categories = await getJSONData(categoriesPath);
+    const { name, description, special_rules } = req.body;
+
+    // Validar campos requeridos
+    if (!name || !description || !special_rules) {
+      return res.status(400).send({
+        code: 400,
+        message: "Name, description, and special_rules are required fields",
+      });
+    }
+
+    // Crear nueva categoría
     const newCategory = {
       id: categories.length + 1,
-      ...req.body,
+      name,
+      description,
+      special_rules,
     };
+
+    // Agregar categoría al array
     categories.push(newCategory);
+
+    // Escribir datos actualizados en el archivo
     await writeJSONData(categoriesPath, categories);
-    res.status(200).send({
-      code: 200,
+
+    res.status(201).send({
+      code: 201,
       message: "Category successfully created",
       data: newCategory,
     });
   } catch (err) {
+    console.error("Error in createCategory:", err);
     res.status(500).send("Server error");
   }
 };

@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "name": "Cedula de Ciudadania"
+  },
+  {
+    "id": 2,
+    "name": "Pasaporte"
+  },
+  {
+    "id": 3,
+    "name": "Licencia de Conducir"
+  },
+  {
+    "id": 4,
+    "name": "Tarjeta de Identidad"
+  },
+  {
+    "id": 5,
+    "name": "Cedula de Extranjeria"
+  },
+  {
+    "id": 6,
+    "name": "Registro Civil"
+  },
+  {
+    "id": 7,
+    "name": "Visa"
+  },
+  {
+    "id": 8,
+    "name": "Permiso de Residencia"
+  },
+  {
+    "id": 9,
+    "name": "Documento Nacional de Identidad"
+  },
+  {
+    "id": 10,
+    "name": "Carnet de Identidad"
+  }
+]

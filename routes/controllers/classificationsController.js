@@ -8,6 +8,7 @@ const classificationsPath = path.join(
 const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
 const groupsPath = path.join(__dirname, "../../db/groups.json");
 const teamsPath = path.join(__dirname, "../../db/teams.json");
+const categoriesPath = path.join(__dirname, "../../db/categories.json");
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -36,34 +37,48 @@ const writeJSONData = (filePath, data) => {
 // Obtener todas las clasificaciones
 const getAllClassifications = async (req, res) => {
   try {
-    const classifications = await getJSONData(classificationsPath);
-    const tournaments = await getJSONData(tournamentsPath);
-    const groups = await getJSONData(groupsPath);
-    const teams = await getJSONData(teamsPath);
+    const [classifications, tournaments, groups, teams, categories] = await Promise.all([
+      getJSONData(classificationsPath),
+      getJSONData(tournamentsPath),
+      getJSONData(groupsPath),
+      getJSONData(teamsPath),
+      getJSONData(categoriesPath),
+    ]);
 
     const formattedClassifications = {};
 
     classifications.forEach((classification) => {
-      const tournament =
-        tournaments.find((t) => t.id === classification.id_tournament)?.name ||
-        "Unknown Tournament";
-      const group =
-        groups.find((g) => g.id === classification.id_group)?.name ||
-        "Unknown Group";
-      const team =
-        teams.find((t) => t.id === classification.id_team)?.name ||
-        "Unknown Team";
+      const tournament = tournaments.find(
+        (t) => t.id === classification.id_tournament
+      );
+      const group = groups.find((g) => g.id === classification.id_group);
+      const team = teams.find((t) => t.id === classification.id_team);
+      const category = tournament ? categories.find((c) => c.id === tournament.id_category) : null;
 
-      if (!formattedClassifications[tournament]) {
-        formattedClassifications[tournament] = {};
+      const tournamentId = tournament ? tournament.id : "Unknown Tournament";
+      const tournamentName = tournament
+        ? `${tournament.name} (${tournament.year}, ${category ? category.name : "Unknown Category"})`
+        : "Unknown Tournament";
+      const groupId = group ? group.id : "Unknown Group";
+      const groupName = group ? group.name : "Unknown Group";
+      const teamName = team ? team.name : "Unknown Team";
+
+      if (!formattedClassifications[tournamentId]) {
+        formattedClassifications[tournamentId] = {
+          name: tournamentName,
+          groups: {}
+        };
       }
 
-      if (!formattedClassifications[tournament][group]) {
-        formattedClassifications[tournament][group] = [];
+      if (!formattedClassifications[tournamentId].groups[groupId]) {
+        formattedClassifications[tournamentId].groups[groupId] = {
+          name: groupName,
+          classifications: []
+        };
       }
 
-      formattedClassifications[tournament][group].push({
-        team,
+      formattedClassifications[tournamentId].groups[groupId].classifications.push({
+        team: teamName,
         points: classification.points,
         matches_played: classification.matches_played,
         matches_won: classification.matches_won,
@@ -76,9 +91,9 @@ const getAllClassifications = async (req, res) => {
     });
 
     // Ordenar clasificaciones
-    for (const tournament in formattedClassifications) {
-      for (const group in formattedClassifications[tournament]) {
-        formattedClassifications[tournament][group].sort((a, b) => {
+    for (const tournamentId in formattedClassifications) {
+      for (const groupId in formattedClassifications[tournamentId].groups) {
+        formattedClassifications[tournamentId].groups[groupId].classifications.sort((a, b) => {
           if (b.points !== a.points) return b.points - a.points;
           if (b.goal_difference !== a.goal_difference)
             return b.goal_difference - a.goal_difference;
@@ -95,6 +110,7 @@ const getAllClassifications = async (req, res) => {
       data: formattedClassifications,
     });
   } catch (err) {
+    console.error("Error in getAllClassifications:", err);
     res.status(500).send("Server error");
   }
 };
