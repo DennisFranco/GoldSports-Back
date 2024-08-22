@@ -395,6 +395,37 @@ const deletePlayer = async (req, res) => {
   }
 };
 
+// Eliminar todos los jugadores por ID de equipo
+const deletePlayersByTeamID = async (req, res) => {
+  try {
+    const players = await getJSONData(playersPath);
+    const { id_team } = req.params;
+
+    // Filtrar los jugadores que no pertenecen al equipo especificado
+    const filteredPlayers = players.filter(
+      (player) => player.id_team !== parseInt(id_team)
+    );
+
+    if (filteredPlayers.length === players.length) {
+      return res.status(404).send({
+        code: 404,
+        message: "No players found for the specified team ID",
+      });
+    }
+
+    // Escribir los datos actualizados en el archivo
+    await writeJSONData(playersPath, filteredPlayers);
+
+    res.status(200).send({
+      code: 200,
+      message: "Players successfully deleted",
+    });
+  } catch (err) {
+    console.error("Error in deletePlayersByTeamID:", err);
+    res.status(500).send("Server error");
+  }
+};
+
 module.exports = {
   getAllPlayers,
   getPlayerByID,
@@ -403,4 +434,5 @@ module.exports = {
   deletePlayer,
   addTournamentToPlayer,
   removeTournamentFromPlayer,
+  deletePlayersByTeamID,
 };

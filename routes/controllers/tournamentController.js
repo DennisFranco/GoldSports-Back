@@ -12,6 +12,8 @@ const teamsPath = path.join(__dirname, "../../db/teams.json");
 const placesPath = path.join(__dirname, "../../db/fields.json");
 const groupsPath = path.join(__dirname, "../../db/groups.json");
 const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
+const eventsPath = path.join(__dirname, "../../db/events.json");
+const playersPath = path.join(__dirname, "../../db/players.json");
 
 const getJSONData = (filePath) => {
   return new Promise((resolve, reject) => {
@@ -83,6 +85,8 @@ const getTournamentByID = async (req, res) => {
       places,
       groups,
       teamsGroups,
+      events,
+      players,
     ] = await Promise.all([
       getJSONData(tournamentsPath),
       getJSONData(categoriesPath),
@@ -92,6 +96,8 @@ const getTournamentByID = async (req, res) => {
       getJSONData(placesPath),
       getJSONData(groupsPath),
       getJSONData(teamsGroupsPath),
+      getJSONData(eventsPath),
+      getJSONData(playersPath),
     ]);
 
     const tournament = tournaments.find(
@@ -118,23 +124,23 @@ const getTournamentByID = async (req, res) => {
           };
         });
 
-      // Agrupar partidos por fecha y ordenar por hora
-      const matchesGroupedByDate = tournamentMatches.reduce((acc, match) => {
-        if (!acc[match.date]) {
-          acc[match.date] = [];
+      // Agrupar partidos por ronda y ordenar por hora
+      const matchesGroupedByRound = tournamentMatches.reduce((acc, match) => {
+        if (!acc[match.round]) {
+          acc[match.round] = [];
         }
-        acc[match.date].push(match);
-        acc[match.date].sort((a, b) =>
+        acc[match.round].push(match);
+        acc[match.round].sort((a, b) =>
           a.hour_start.localeCompare(b.hour_start)
         );
         return acc;
       }, {});
 
-      // Ordenar las fechas de manera descendente
-      const sortedMatchesGroupedByDate = Object.keys(matchesGroupedByDate)
-        .sort((a, b) => new Date(b) - new Date(a))
+      // Ordenar las rondas de manera ascendente
+      const sortedMatchesGroupedByRound = Object.keys(matchesGroupedByRound)
+        .sort((a, b) => a - b)
         .reduce((acc, key) => {
-          acc[key] = matchesGroupedByDate[key];
+          acc[key] = matchesGroupedByRound[key];
           return acc;
         }, {});
 
@@ -199,6 +205,76 @@ const getTournamentByID = async (req, res) => {
           }
         });
 
+      // Calcular estadísticas
+      const totalMatchesPlayed = tournamentMatches.length;
+      let totalGoals = 0;
+      let totalYellowCards = 0;
+      let totalRedCards = 0;
+      const playerStats = {};
+
+      events.forEach((event) => {
+        const match = matches.find((m) => m.id === event.id_match);
+        if (match && match.id_tournament === tournament.id) {
+          if (event.id_event_type === 1) {
+            totalGoals++;
+            if (!playerStats[event.id_player]) {
+              playerStats[event.id_player] = {
+                goals: 0,
+                yellowCards: 0,
+                redCards: 0,
+              };
+            }
+            playerStats[event.id_player].goals++;
+          } else if (event.id_event_type === 2) {
+            totalYellowCards++;
+            if (!playerStats[event.id_player]) {
+              playerStats[event.id_player] = {
+                goals: 0,
+                yellowCards: 0,
+                redCards: 0,
+              };
+            }
+            playerStats[event.id_player].yellowCards++;
+          } else if (event.id_event_type === 3) {
+            totalRedCards++;
+            if (!playerStats[event.id_player]) {
+              playerStats[event.id_player] = {
+                goals: 0,
+                yellowCards: 0,
+                redCards: 0,
+              };
+            }
+            playerStats[event.id_player].redCards++;
+          }
+        }
+      });
+
+      // Encontrar el máximo goleador, el jugador con más amarillas y el jugador con más rojas
+      let topScorer = null;
+      let mostYellowCards = null;
+      let mostRedCards = null;
+
+      Object.keys(playerStats).forEach((playerId) => {
+        const stats = playerStats[playerId];
+        const player = players.find((p) => p.id === parseInt(playerId));
+
+        if (topScorer === null || stats.goals > playerStats[topScorer].goals) {
+          topScorer = playerId;
+        }
+        if (
+          mostYellowCards === null ||
+          stats.yellowCards > playerStats[mostYellowCards].yellowCards
+        ) {
+          mostYellowCards = playerId;
+        }
+        if (
+          mostRedCards === null ||
+          stats.redCards > playerStats[mostRedCards].redCards
+        ) {
+          mostRedCards = playerId;
+        }
+      });
+
       const response = {
         INFORMACIÓN: {
           id: tournament.id,
@@ -206,8 +282,21 @@ const getTournamentByID = async (req, res) => {
           year: tournament.year,
           id_category: tournament.id_category,
           category: category ? category : null,
+          total_matches_played: totalMatchesPlayed,
+          total_goals: totalGoals,
+          total_yellow_cards: totalYellowCards,
+          total_red_cards: totalRedCards,
+          top_scorer: topScorer
+            ? players.find((p) => p.id === parseInt(topScorer)).name
+            : null,
+          most_yellow_cards: mostYellowCards
+            ? players.find((p) => p.id === parseInt(mostYellowCards)).name
+            : null,
+          most_red_cards: mostRedCards
+            ? players.find((p) => p.id === parseInt(mostRedCards)).name
+            : null,
         },
-        PARTIDOS: sortedMatchesGroupedByDate,
+        PARTIDOS: sortedMatchesGroupedByRound,
         CLASIFICACIÓN: formattedClassifications,
         EQUIPOS: tournamentTeamsByGroup,
       };
@@ -230,16 +319,41 @@ const getTournamentByID = async (req, res) => {
 const createTournament = async (req, res) => {
   try {
     const tournaments = await getJSONData(tournamentsPath);
+    const groups = await getJSONData(groupsPath);
+
+    const { numberGroups, ...tournamentData } = req.body;
+
     const newTournament = {
       id: tournaments.length + 1,
-      ...req.body,
+      ...tournamentData,
     };
     tournaments.push(newTournament);
-    await writeJSONData(tournamentsPath, tournaments);
+
+    const groupNames = Array.from(
+      { length: numberGroups },
+      (_, i) => `Grupo ${String.fromCharCode(65 + i)}`
+    );
+
+    const newGroups = groupNames.map((name, index) => ({
+      id: groups.length + 1 + index,
+      id_tournament: newTournament.id,
+      name,
+    }));
+
+    const updatedGroups = [...groups, ...newGroups];
+
+    await Promise.all([
+      writeJSONData(tournamentsPath, tournaments),
+      writeJSONData(groupsPath, updatedGroups),
+    ]);
+
     res.status(200).send({
       code: 200,
-      message: "Tournament successfully created",
-      data: newTournament,
+      message: "Tournament and groups successfully created",
+      data: {
+        tournament: newTournament,
+        groups: newGroups,
+      },
     });
   } catch (err) {
     res.status(500).send("Server error");

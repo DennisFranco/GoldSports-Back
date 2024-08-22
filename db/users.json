@@ -23,7 +23,16 @@
     "email": "Delegado2@mail.com",
     "password": "$2a$12$JRiLq7MzXp6/B3TpXYE27OTSmvjrwIeGxzCcgq9/KCXxsa0GdRa56",
     "role": 2,
-    "status": 2,
-    "phoneNumber": "3167485800"
+    "status": 1,
+    "phoneNumber": "3167485809"
+  },
+  {
+    "id": 4,
+    "name": "Delegado 3",
+    "email": "Delegado3@mail.com",
+    "password": "$2a$12$5x8sgcrU76CyR51A0aaKV.72YbqC8owC9xZIaIPcKLlyh2Hqea9p2",
+    "role": 2,
+    "status": 1,
+    "phoneNumber": "3213456789"
   }
 ]

@@ -1,19 +1,9 @@
 [
   {
     "id": 1,
-    "id_player": 5,
-    "id_tournament": 1,
-    "date": "2024-07-23",
+    "id_player": 29,
+    "date": "2024-08-15",
     "description": "Suspendido por tarjeta roja directa",
-    "sanction_duration": 1,
-    "status": "Vigente"
-  },
-  {
-    "id": 2,
-    "id_player": 23,
-    "id_tournament": 1,
-    "date": "2024-07-23",
-    "description": "Suspendido por acumulación de tarjetas amarillas",
     "sanction_duration": 1,
     "status": "Vigente"
   }

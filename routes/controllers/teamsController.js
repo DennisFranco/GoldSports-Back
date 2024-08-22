@@ -118,7 +118,7 @@ const getTeamByID = async (req, res) => {
       });
 
     const plantilla = {
-      coach: team.manager_name,
+      name: team.name,
       yearFoundation: team.yearFoundation,
       manager_name: team.manager_name,
       manager_phone: team.manager_phone,
@@ -165,44 +165,81 @@ const getTeamByID = async (req, res) => {
         return acc;
       }, {});
 
-    // Obtener clasificación
-    const classificationGroups = classifications.reduce(
-      (acc, classification) => {
-        const group = groups.find((g) => g.id === classification.id_group);
-        const groupName = group
-          ? group.name
-          : `Group ${classification.id_group}`;
-        if (!acc[groupName]) {
-          acc[groupName] = [];
-        }
-        acc[groupName].push(classification);
-        return acc;
-      },
-      {}
-    );
+    // Obtener clasificación organizada por torneo y grupo, filtrada por equipo
+    const formattedClassifications = {};
+    const teamGroups = teamsGroups.filter((tg) => tg.id_team === team.id);
 
-    const classification = Object.keys(classificationGroups).reduce(
-      (acc, groupName) => {
-        acc[groupName] = classificationGroups[groupName].map(
-          (classification) => {
-            const team = teams.find((t) => t.id === classification.id_team);
-            return {
-              team: team ? team.name : "Unknown Team",
-              points: classification.points,
-              matches_played: classification.matches_played,
-              matches_won: classification.matches_won,
-              tied_matches: classification.tied_matches,
-              lost_matches: classification.lost_matches,
-              favor_goals: classification.favor_goals,
-              goals_against: classification.goals_against,
-              goal_difference: classification.goal_difference,
-            };
+    teamGroups.forEach((teamGroup) => {
+      const group = groups.find((g) => g.id === teamGroup.id_group);
+      const tournament = tournaments.find(
+        (t) => t.id === group.id_tournament
+      );
+      const category = tournament
+        ? categories.find((c) => c.id === tournament.id_category)
+        : null;
+
+      const tournamentId = tournament ? tournament.id : "Unknown Tournament";
+      const tournamentName = tournament
+        ? `${tournament.name} (${tournament.year}, ${
+            category ? category.name : "Unknown Category"
+          })`
+        : "Unknown Tournament";
+      const groupId = group ? group.id : "Unknown Group";
+      const groupName = group ? group.name : "Unknown Group";
+
+      if (!formattedClassifications[tournamentId]) {
+        formattedClassifications[tournamentId] = {
+          name: tournamentName,
+          groups: {},
+        };
+      }
+
+      if (!formattedClassifications[tournamentId].groups[groupId]) {
+        formattedClassifications[tournamentId].groups[groupId] = {
+          name: groupName,
+          classifications: [],
+        };
+      }
+
+      const groupTeams = teamsGroups
+        .filter((tg) => tg.id_group === group.id)
+        .map((tg) => teams.find((t) => t.id === tg.id_team));
+
+      groupTeams.forEach((groupTeam) => {
+        const classification = classifications.find(
+          (cls) =>
+            cls.id_group === group.id && cls.id_team === groupTeam.id
+        );
+
+        formattedClassifications[tournamentId].groups[groupId].classifications.push({
+          team: groupTeam.name,
+          points: classification ? classification.points : 0,
+          matches_played: classification ? classification.matches_played : 0,
+          matches_won: classification ? classification.matches_won : 0,
+          tied_matches: classification ? classification.tied_matches : 0,
+          lost_matches: classification ? classification.lost_matches : 0,
+          favor_goals: classification ? classification.favor_goals : 0,
+          goals_against: classification ? classification.goals_against : 0,
+          goal_difference: classification ? classification.goal_difference : 0,
+        });
+      });
+    });
+
+    // Ordenar clasificaciones
+    for (const tournamentId in formattedClassifications) {
+      for (const groupId in formattedClassifications[tournamentId].groups) {
+        formattedClassifications[tournamentId].groups[groupId].classifications.sort(
+          (a, b) => {
+            if (b.points !== a.points) return b.points - a.points;
+            if (b.goal_difference !== a.goal_difference)
+              return b.goal_difference - a.goal_difference;
+            if (b.favor_goals !== a.favor_goals)
+              return b.favor_goals - a.favor_goals;
+            return a.goals_against - b.goals_against;
           }
         );
-        return acc;
-      },
-      {}
-    );
+      }
+    }
 
     // Obtener torneos a los que el equipo está inscrito
     const teamTournaments = teamsGroups
@@ -230,7 +267,7 @@ const getTeamByID = async (req, res) => {
       PLANTILLA: plantilla,
       SANCIONES: sanciones,
       PARTIDOS: partidos,
-      CLASIFICACIÓN: classification,
+      CLASIFICACIÓN: formattedClassifications,
       TORNEOS: teamTournaments,
     };
 
@@ -244,7 +281,6 @@ const getTeamByID = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
-
 
 const getPlayersByTournamentAndTeam = async (req, res) => {
   try {

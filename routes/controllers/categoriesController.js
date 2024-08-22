@@ -98,8 +98,8 @@ const createCategory = async (req, res) => {
     // Escribir datos actualizados en el archivo
     await writeJSONData(categoriesPath, categories);
 
-    res.status(201).send({
-      code: 201,
+    res.status(200).send({
+      code: 200,
       message: "Category successfully created",
       data: newCategory,
     });

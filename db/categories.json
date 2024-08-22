@@ -33,12 +33,10 @@
     "special_rules": {
       "minimum_age": 35,
       "maximum_exceptions": 4,
-      "exception_age_ranges": [
-        {
-          "minimum_age": 30,
-          "maximum_age": 34
-        }
-      ],
+      "exception_age_ranges": {
+        "minimum_age": 30,
+        "maximum_age": 34
+      },
       "goalkeeper_age_range": {
         "minimum_age": 0,
         "maximum_age": 100
@@ -52,12 +50,10 @@
     "special_rules": {
       "minimum_age": 40,
       "maximum_exceptions": 5,
-      "exception_age_ranges": [
-        {
-          "minimum_age": 36,
-          "maximum_age": 39
-        }
-      ],
+      "exception_age_ranges": {
+        "minimum_age": 36,
+        "maximum_age": 39
+      },
       "goalkeeper_age_range": {
         "minimum_age": 0,
         "maximum_age": 100
@@ -71,12 +67,10 @@
     "special_rules": {
       "minimum_age": 48,
       "maximum_exceptions": 4,
-      "exception_age_ranges": [
-        {
-          "minimum_age": 45,
-          "maximum_age": 47
-        }
-      ],
+      "exception_age_ranges": {
+        "minimum_age": 45,
+        "maximum_age": 47
+      },
       "goalkeeper_age_range": {
         "minimum_age": 30,
         "maximum_age": 30

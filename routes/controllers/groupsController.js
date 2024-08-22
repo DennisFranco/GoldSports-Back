@@ -163,11 +163,12 @@ const createTeamGroup = async (req, res) => {
 
     const { id_team, id_group } = req.body;
 
+    console.error(req.body);
     // Validar que los campos necesarios están presentes
-    if (!id_team || !id_group) {
+    if (!Array.isArray(id_team) || id_team.length === 0 || !id_group) {
       return res.status(400).send({
         code: 400,
-        message: "id_team and id_group are required fields",
+        message: "id_team must be a non-empty array and id_group is required",
       });
     }
 
@@ -179,34 +180,39 @@ const createTeamGroup = async (req, res) => {
       });
     }
 
-    // Crear un nuevo registro en teams_groups
-    const newTeamGroup = {
-      id: teamsGroups.length + 1,
-      id_team,
-      id_group,
-    };
+    const newTeamGroups = [];
+    const newClassifications = [];
 
-    // Añadir el nuevo registro al array
-    teamsGroups.push(newTeamGroup);
+    id_team.forEach((id_team) => {
+      // Crear un nuevo registro en teams_groups
+      const newTeamGroup = {
+        id: teamsGroups.length + 1 + newTeamGroups.length,
+        id_team,
+        id_group,
+      };
+      newTeamGroups.push(newTeamGroup);
 
-    // Crear un nuevo registro en classifications
-    const newClassification = {
-      id: classifications.length + 1,
-      id_tournament: group.id_tournament,
-      id_group,
-      id_team,
-      points: 0,
-      matches_played: 0,
-      matches_won: 0,
-      tied_matches: 0,
-      lost_matches: 0,
-      favor_goals: 0,
-      goals_against: 0,
-      goal_difference: 0,
-    };
+      // Crear un nuevo registro en classifications
+      const newClassification = {
+        id: classifications.length + 1 + newClassifications.length,
+        id_tournament: group.id_tournament,
+        id_group,
+        id_team,
+        points: 0,
+        matches_played: 0,
+        matches_won: 0,
+        tied_matches: 0,
+        lost_matches: 0,
+        favor_goals: 0,
+        goals_against: 0,
+        goal_difference: 0,
+      };
+      newClassifications.push(newClassification);
+    });
 
-    // Añadir el nuevo registro al array de classifications
-    classifications.push(newClassification);
+    // Añadir los nuevos registros al array existente
+    teamsGroups.push(...newTeamGroups);
+    classifications.push(...newClassifications);
 
     // Escribir los datos actualizados en los archivos
     await Promise.all([
@@ -214,19 +220,19 @@ const createTeamGroup = async (req, res) => {
       writeJSONData(classificationsPath, classifications),
     ]);
 
-    // Responder con el nuevo registro creado
+    // Responder con los nuevos registros creados
     res.status(200).send({
       code: 200,
-      message: "Team group and classification successfully created",
-      data: {
-        teamGroup: newTeamGroup,
-        classification: newClassification,
-      },
+      message: "Team groups and classifications successfully created",
     });
   } catch (err) {
     console.error("Error in createTeamGroup:", err);
     res.status(500).send("Server error");
   }
+};
+
+module.exports = {
+  createTeamGroup,
 };
 
 // Actualizar un grupo por ID
