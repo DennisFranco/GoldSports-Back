@@ -17,7 +17,6 @@ const classificationsPath = path.join(
   "../../db/classifications.json"
 );
 const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
-const placesPath = path.join(__dirname, "../../db/fields.json");
 const groupsPath = path.join(__dirname, "../../db/groups.json");
 
 const getJSONData = (filePath) => {
@@ -589,14 +588,13 @@ const cancelMatchDueToIncident = async (req, res) => {
 
 const createTournamentMatches = async (req, res) => {
   try {
-    const [tournaments, groups, teamsGroups, matches, teams, places] =
+    const [tournaments, groups, teamsGroups, matches, teams] =
       await Promise.all([
         getJSONData(tournamentsPath),
         getJSONData(groupsPath),
         getJSONData(teamsGroupsPath),
         getJSONData(matchesPath),
         getJSONData(teamsPath),
-        getJSONData(placesPath),
       ]);
 
     const { id_tournament } = req.body;
@@ -612,10 +610,9 @@ const createTournamentMatches = async (req, res) => {
     const tournamentGroups = groups.filter(
       (g) => g.id_tournament === id_tournament
     );
+
     const newMatches = [];
-    let currentRound = 1;
-    let currentDate = new Date();
-    const hours = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00"]; // Specific times
+    let matchIdCounter = matches.length + 1; // Iniciar el contador de ID desde el último ID existente + 1
 
     for (const group of tournamentGroups) {
       const groupTeams = teamsGroups
@@ -624,15 +621,16 @@ const createTournamentMatches = async (req, res) => {
 
       const n = groupTeams.length;
       const isOdd = n % 2 !== 0;
-      const place = places[0]; // Use first place for now, adjust logic as needed
-      let hourIndex = 0;
 
       // Si el número de equipos es impar, agregamos un "equipo fantasma" que representa la jornada de descanso
       if (isOdd) {
         groupTeams.push(null); // El equipo "null" indica un descanso
       }
 
+      let currentRound = 1;
+
       for (let i = 0; i < groupTeams.length - 1; i++) {
+        const roundMatches = [];
         for (let j = 0; j < groupTeams.length / 2; j++) {
           const home = groupTeams[j];
           const away = groupTeams[groupTeams.length - 1 - j];
@@ -641,13 +639,14 @@ const createTournamentMatches = async (req, res) => {
             // Si uno de los equipos es "null", indica un descanso
             const activeTeam = home || away;
             if (activeTeam) {
-              newMatches.push({
-                id: matches.length + newMatches.length + 1,
+              roundMatches.push({
+                id: matchIdCounter++, // Incrementar el ID para cada nuevo partido
                 id_tournament: id_tournament,
+                id_group: group.id,
                 round: currentRound,
-                date: currentDate.toISOString().split("T")[0],
-                hour_start: hours[hourIndex],
-                place: place.id,
+                date: null, // Fecha no asignada aún
+                hour_start: null, // Hora no asignada aún
+                place: null, // Lugar no asignado aún
                 local_team: activeTeam.id,
                 visiting_team: null, // Indica un descanso
                 local_result: 0,
@@ -657,13 +656,14 @@ const createTournamentMatches = async (req, res) => {
               });
             }
           } else {
-            newMatches.push({
-              id: matches.length + newMatches.length + 1,
+            roundMatches.push({
+              id: matchIdCounter++, // Incrementar el ID para cada nuevo partido
               id_tournament: id_tournament,
+              id_group: group.id,
               round: currentRound,
-              date: currentDate.toISOString().split("T")[0],
-              hour_start: hours[hourIndex],
-              place: place.id,
+              date: null, // Fecha no asignada aún
+              hour_start: null, // Hora no asignada aún
+              place: null, // Lugar no asignado aún
               local_team: home.id,
               visiting_team: away.id,
               local_result: 0,
@@ -672,18 +672,10 @@ const createTournamentMatches = async (req, res) => {
               observations: "",
             });
           }
-
-          hourIndex++;
-          if (hourIndex >= hours.length) {
-            hourIndex = 0;
-            currentDate = new Date(
-              currentDate.getTime() + 2 * 24 * 60 * 60 * 1000
-            ); // Move to the next available day
-          }
         }
 
-        // Rotate teams for next round (except the first team)
-        const fixedTeam = groupTeams[0];
+        newMatches.push(...roundMatches);
+
         const rotatingTeams = groupTeams.slice(1);
         rotatingTeams.push(rotatingTeams.shift());
         groupTeams.splice(1, rotatingTeams.length, ...rotatingTeams);
@@ -692,7 +684,7 @@ const createTournamentMatches = async (req, res) => {
       }
     }
 
-    // Save the new matches to the database
+    // Guardar los nuevos partidos en la base de datos
     matches.push(...newMatches);
     await writeJSONData(matchesPath, matches);
 

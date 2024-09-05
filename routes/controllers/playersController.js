@@ -38,35 +38,20 @@ const writeJSONData = (filePath, data) => {
 // Obtener todos los jugadores
 const getAllPlayers = async (req, res) => {
   try {
-    const [players, teams, teamsGroups, groups, tournaments, positions] =
-      await Promise.all([
-        getJSONData(playersPath),
-        getJSONData(teamsPath),
-        getJSONData(teamsGroupsPath),
-        getJSONData(groupsPath),
-        getJSONData(tournamentsPath),
-        getJSONData(positionsPath),
-      ]);
+    const [players, teams, positions] = await Promise.all([
+      getJSONData(playersPath),
+      getJSONData(teamsPath),
+      getJSONData(positionsPath),
+    ]);
 
     if (players) {
       const playersWithTeamAndTournament = players.map((player) => {
         const team = teams.find((team) => team.id === player.id_team);
-        const teamGroup = teamsGroups.find(
-          (tg) => tg.id_team === player.id_team
-        );
-        const group = teamGroup
-          ? groups.find((g) => g.id === teamGroup.id_group)
-          : null;
-        const tournament = group
-          ? tournaments.find((t) => t.id === group.id_tournament)
-          : null;
         const position = positions.find((pos) => pos.id === player.position);
 
         return {
           ...player,
           team_name: team ? team.name : "Unknown Team",
-          tournament_name: tournament ? tournament.name : "Unknown Tournament",
-          tournament_year: tournament ? tournament.year : "Unknown Year",
           position_name: position ? position.name : "Unknown Position",
         };
       });

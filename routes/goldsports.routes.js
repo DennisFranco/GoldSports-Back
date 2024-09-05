@@ -77,7 +77,13 @@ router
   .post("/matches/walkover", matchesController.updateMatchStatus)
   .post("/matches/cancel", matchesController.cancelMatchDueToIncident)
   .get("/tournaments", tournamentController.getAllTournaments)
-  .get("/tournaments/:id", tournamentController.getTournamentByID)
+  .get("/tournaments/:id", tournamentController.getTournamentInfo)
+  .get("/tournaments/:id/teams", tournamentController.getTournamentTeams)
+  .get("/tournaments/:id/matches", tournamentController.getTournamentMatches)
+  .get(
+    "/tournaments/:id/classification",
+    tournamentController.getTournamentClassification
+  )
   .post("/tournaments", tournamentController.createTournament)
   .put(
     "/tournaments/:id",

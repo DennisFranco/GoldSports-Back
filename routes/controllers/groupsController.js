@@ -231,10 +231,6 @@ const createTeamGroup = async (req, res) => {
   }
 };
 
-module.exports = {
-  createTeamGroup,
-};
-
 // Actualizar un grupo por ID
 const updateGroup = async (req, res) => {
   try {
@@ -289,4 +285,5 @@ module.exports = {
   updateGroup,
   deleteGroup,
   getGroupsByTournamentID,
+  createTeamGroup,
 };

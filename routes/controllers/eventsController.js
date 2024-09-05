@@ -90,6 +90,28 @@ const createEvent = async (req, res) => {
         getJSONData(playerStatsPath),
       ]);
 
+    const { id_player, id_match, id_event_type } = req.body;
+
+    // Verificar si el jugador ya tiene un evento de tipo 3 (tarjeta roja) o dos eventos de tipo 2 (tarjetas amarillas) en este partido
+    const playerEvents = events.filter(
+      (event) => event.id_player === id_player && event.id_match === id_match
+    );
+
+    const redCardEvent = playerEvents.find(
+      (event) => event.id_event_type === 3
+    );
+    const yellowCardEvents = playerEvents.filter(
+      (event) => event.id_event_type === 2
+    );
+
+    if (redCardEvent || yellowCardEvents.length >= 2) {
+      return res.status(400).send({
+        code: 400,
+        message:
+          "El jugador ya está expulsado y no puede tener más eventos en este partido.",
+      });
+    }
+
     const newEvent = {
       id: events.length + 1,
       ...req.body,
@@ -192,15 +214,7 @@ const createEvent = async (req, res) => {
     } else if (newEvent.id_event_type === 2) {
       playerStat.yellow_cards += 1;
 
-      // Verificar si ya hay otra tarjeta amarilla en el mismo partido
-      const yellowCardEvents = events.filter(
-        (e) =>
-          e.id_match === newEvent.id_match &&
-          e.id_event_type === 2 &&
-          e.id_player === newEvent.id_player
-      );
-
-      if (yellowCardEvents.length >= 2) {
+      if (yellowCardEvents.length + 1 >= 2) {
         penalties.push({
           id: penalties.length + 1,
           id_player: newEvent.id_player,
@@ -214,7 +228,6 @@ const createEvent = async (req, res) => {
     } else if (newEvent.id_event_type === 3) {
       playerStat.red_cards += 1;
 
-      // Crear una nueva penalización
       penalties.push({
         id: penalties.length + 1,
         id_player: newEvent.id_player,
