@@ -83,7 +83,7 @@ const loginUser = async (req, res) => {
       });
     }
 
-    if (user.status !== "66da868c3167557912b2bc51") {
+    if (user.status !== "66da868c3167557912b2bc51e") {
       return res.status(401).send({
         code: 401,
         message: "Usuario deshabilitado",
