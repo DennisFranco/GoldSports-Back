@@ -1,4 +1,4 @@
-const { getDB } = require("../config/db");
+const { getDB } = require("../../config/db");
 
 // Obtener todas las sanciones
 const getAllPenalties = async (req, res) => {

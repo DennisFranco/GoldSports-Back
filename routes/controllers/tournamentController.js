@@ -1,4 +1,4 @@
-const { getDB } = require("../config/db");
+const { getDB } = require("../../config/db");
 
 // Obtener todos los torneos con información de la categoría
 const getAllTournaments = async (req, res) => {

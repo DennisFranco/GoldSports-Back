@@ -1,4 +1,4 @@
-const { getDB } = require("../config/db");
+const { getDB } = require("../../config/db");
 
 // Obtener todos los equipos
 const getAllTeams = async (req, res) => {

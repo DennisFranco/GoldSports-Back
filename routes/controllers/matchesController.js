@@ -1,5 +1,31 @@
-const { getDB } = require("../config/db");
+const { getDB } = require("../../config/db");
 const ExcelJS = require("exceljs");
+
+const getColombianDate = (date) => {
+  return new Date(
+    new Date(date).toLocaleDateString("en-US", { timeZone: "America/Bogota" })
+  );
+};
+
+const formatDate = (date) => {
+  const day = date
+    .toLocaleDateString("en-US", {
+      weekday: "short",
+      timeZone: "America/Bogota",
+    })
+    .toUpperCase();
+  const month = date
+    .toLocaleDateString("en-US", {
+      month: "short",
+      timeZone: "America/Bogota",
+    })
+    .toUpperCase();
+  const dayOfMonth = date.toLocaleDateString("en-US", {
+    day: "2-digit",
+    timeZone: "America/Bogota",
+  });
+  return `${day} ${dayOfMonth} ${month}.`;
+};
 
 // Obtener todos los partidos
 const getAllMatches = async (req, res) => {

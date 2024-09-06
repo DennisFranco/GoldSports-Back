@@ -1,4 +1,4 @@
-const { getDB } = require("../config/db");
+const { getDB } = require("../../config/db");
 
 // Obtener todos los números de jugadores en partido
 const getAllMatchPlayersNumbers = async (req, res) => {
