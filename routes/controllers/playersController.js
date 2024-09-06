@@ -1,36 +1,37 @@
-const { getDB } = require("../../config/db");
-const { ObjectId } = require("mongodb");
+const { getDB } = require("../config/db");
 
 // Obtener todos los jugadores
 const getAllPlayers = async (req, res) => {
   try {
     const db = getDB();
-    const playersCollection = db.collection("players");
-    const teamsCollection = db.collection("teams");
-    const positionsCollection = db.collection("positions");
+    const [players, teams, positions] = await Promise.all([
+      db.collection("players").find().toArray(),
+      db.collection("teams").find().toArray(),
+      db.collection("positions").find().toArray(),
+    ]);
 
-    const players = await playersCollection.find().toArray();
-    const teams = await teamsCollection.find().toArray();
-    const positions = await positionsCollection.find().toArray();
+    if (players) {
+      const playersWithTeamAndPosition = players.map((player) => {
+        const team = teams.find((team) => team.id === player.id_team);
+        const position = positions.find((pos) => pos.id === player.position);
 
-    const playersWithTeamAndTournament = players.map((player) => {
-      const team = teams.find((team) => team._id.equals(player.id_team));
-      const position = positions.find((pos) => pos._id.equals(player.position));
+        return {
+          ...player,
+          team_name: team ? team.name : "Unknown Team",
+          position_name: position ? position.name : "Unknown Position",
+        };
+      });
 
-      return {
-        ...player,
-        team_name: team ? team.name : "Unknown Team",
-        position_name: position ? position.name : "Unknown Position",
-      };
-    });
-
-    res.status(200).send({
-      code: 200,
-      message: "Jugadores obtenidos correctamente",
-      data: playersWithTeamAndTournament,
-    });
+      res.status(200).send({
+        code: 200,
+        message: "Players successfully obtained",
+        data: playersWithTeamAndPosition,
+      });
+    } else {
+      return res.status(500).send("Error fetching players from database");
+    }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -38,206 +39,93 @@ const getAllPlayers = async (req, res) => {
 const getPlayerByID = async (req, res) => {
   try {
     const db = getDB();
-    const playersCollection = db.collection("players");
-    const teamsCollection = db.collection("teams");
-    const teamsGroupsCollection = db.collection("teams_groups");
-    const groupsCollection = db.collection("groups");
-    const tournamentsCollection = db.collection("tournaments");
-    const positionsCollection = db.collection("positions");
-    const typesDocsCollection = db.collection("types_docs");
-    const playerStatsCollection = db.collection("player_stats");
+    const [
+      players,
+      teams,
+      teamsGroups,
+      groups,
+      tournaments,
+      positions,
+      typesDocs,
+      playerStats,
+    ] = await Promise.all([
+      db.collection("players").find().toArray(),
+      db.collection("teams").find().toArray(),
+      db.collection("teams_groups").find().toArray(),
+      db.collection("groups").find().toArray(),
+      db.collection("tournaments").find().toArray(),
+      db.collection("positions").find().toArray(),
+      db.collection("types_docs").find().toArray(),
+      db.collection("player_stats").find().toArray(),
+    ]);
 
-    const player = await playersCollection.findOne({
-      _id: new ObjectId(req.params.id),
-    });
-    if (!player) {
-      return res.status(404).send("Jugador no encontrado");
-    }
+    const player = players.find((p) => p.id === parseInt(req.params.id));
+    if (player) {
+      const team = teams.find((team) => team.id === player.id_team);
+      const teamGroup = teamsGroups.find((tg) => tg.id_team === player.id_team);
+      const group = teamGroup
+        ? groups.find((g) => g.id === teamGroup.id_group)
+        : null;
+      const tournament = group
+        ? tournaments.find((t) => t.id === group.id_tournament)
+        : null;
+      const stats = playerStats.filter((stat) => stat.id_player === player.id);
 
-    const team = await teamsCollection.findOne({
-      _id: new ObjectId(player.id_team),
-    });
-    const teamGroup = await teamsGroupsCollection.findOne({
-      id_team: player.id_team,
-    });
-    const group = teamGroup
-      ? await groupsCollection.findOne({
-          _id: new ObjectId(teamGroup.id_group),
-        })
-      : null;
-    const tournament = group
-      ? await tournamentsCollection.findOne({
-          _id: new ObjectId(group.id_tournament),
-        })
-      : null;
-    const stats = await playerStatsCollection
-      .find({ id_player: player._id })
-      .toArray();
+      const positionName =
+        positions.find((pos) => pos.id === player.position)?.name ||
+        "Unknown Position";
+      const typeName =
+        typesDocs.find((type) => type.id === player.type_id)?.name ||
+        "Unknown Document Type";
 
-    const positionName = await positionsCollection.findOne({
-      _id: new ObjectId(player.position),
-    });
-    const typeName = await typesDocsCollection.findOne({
-      _id: new ObjectId(player.type_id),
-    });
-
-    res.status(200).send({
-      code: 200,
-      message: "Jugador obtenido correctamente",
-      data: {
-        ...player,
-        position_name: positionName ? positionName.name : "Unknown Position",
-        type_name: typeName ? typeName.name : "Unknown Document Type",
-        team_name: team ? team.name : "Unknown Team",
-        tournament_name: tournament ? tournament.name : "Unknown Tournament",
-        tournament_year: tournament ? tournament.year : "Unknown Year",
-        stats,
-      },
-    });
-  } catch (err) {
-    res.status(500).send("Error del servidor");
-  }
-};
-
-// Crear un nuevo jugador
-const createPlayer = async (req, res) => {
-  try {
-    const db = getDB();
-    const playersCollection = db.collection("players");
-    const { number_id } = req.body;
-
-    // Verificar si el jugador ya existe
-    const playerExists = await playersCollection.findOne({ number_id });
-    if (playerExists) {
-      return res.status(400).send({
-        code: 400,
-        message: "El jugador con este número de identificación ya existe",
+      res.status(200).send({
+        code: 200,
+        message: "Player successfully obtained",
+        data: {
+          ...player,
+          position_name: positionName,
+          type_name: typeName,
+          team_name: team ? team.name : "Unknown Team",
+          tournament_name: tournament ? tournament.name : "Unknown Tournament",
+          tournament_year: tournament ? tournament.year : "Unknown Year",
+          stats,
+        },
       });
+    } else {
+      res.status(404).send("Player not found");
     }
-
-    // Crear un nuevo jugador
-    const newPlayer = { ...req.body };
-    const result = await playersCollection.insertOne(newPlayer);
-
-    res.status(200).send({
-      code: 200,
-      message: "Jugador creado correctamente",
-      data: result.ops[0],
-    });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
-// Actualizar un jugador por ID
-const updatePlayer = async (req, res) => {
-  try {
-    const db = getDB();
-    const playersCollection = db.collection("players");
-
-    const result = await playersCollection.findOneAndUpdate(
-      { _id: new ObjectId(req.params.id) },
-      { $set: req.body },
-      { returnOriginal: false }
-    );
-
-    if (!result.value) {
-      return res.status(404).send("Jugador no encontrado");
-    }
-
-    res.status(200).send({
-      code: 200,
-      message: "Jugador actualizado correctamente",
-      data: result.value,
-    });
-  } catch (err) {
-    res.status(500).send("Error del servidor");
-  }
-};
-
-// Eliminar un jugador por ID
-const deletePlayer = async (req, res) => {
-  try {
-    const db = getDB();
-    const playersCollection = db.collection("players");
-
-    const result = await playersCollection.deleteOne({
-      _id: new ObjectId(req.params.id),
-    });
-
-    if (result.deletedCount === 0) {
-      return res.status(404).send({
-        code: 404,
-        message: "Jugador no encontrado",
-      });
-    }
-
-    res.status(200).send({
-      code: 200,
-      message: "Jugador eliminado correctamente",
-    });
-  } catch (err) {
-    console.error("Error al eliminar jugador:", err);
-    res.status(500).send("Error del servidor");
-  }
-};
-
-// Eliminar todos los jugadores por ID de equipo
-const deletePlayersByTeamID = async (req, res) => {
-  try {
-    const db = getDB();
-    const playersCollection = db.collection("players");
-    const { id_team } = req.params;
-
-    const result = await playersCollection.deleteMany({
-      id_team: new ObjectId(id_team),
-    });
-
-    if (result.deletedCount === 0) {
-      return res.status(404).send({
-        code: 404,
-        message: "No se encontraron jugadores para el equipo especificado",
-      });
-    }
-
-    res.status(200).send({
-      code: 200,
-      message: "Jugadores eliminados correctamente",
-    });
-  } catch (err) {
-    console.error("Error al eliminar jugadores por ID de equipo:", err);
-    res.status(500).send("Error del servidor");
-  }
-};
-
-// Agregar torneo a un jugador
+// Añadir un torneo a un jugador
 const addTournamentToPlayer = async (req, res) => {
   try {
-    const { playerId, tournamentId } = req.body;
     const db = getDB();
-    const playersCollection = db.collection("players");
-    const tournamentsCollection = db.collection("tournaments");
-    const categoriesCollection = db.collection("categories");
+    const { playerId, tournamentId } = req.body;
 
-    const player = await playersCollection.findOne({
-      _id: new ObjectId(playerId),
-    });
+    const [players, categories, tournaments] = await Promise.all([
+      db.collection("players").find().toArray(),
+      db.collection("categories").find().toArray(),
+      db.collection("tournaments").find().toArray(),
+    ]);
+
+    const player = players.find((p) => p.id === parseInt(playerId));
     if (!player) {
-      return res.status(404).send("Jugador no encontrado");
+      return res.status(404).send("Player not found");
     }
 
-    const tournament = await tournamentsCollection.findOne({
-      _id: new ObjectId(tournamentId),
-    });
+    const tournament = tournaments.find((t) => t.id === parseInt(tournamentId));
     if (!tournament) {
-      return res.status(404).send("Torneo no encontrado");
+      return res.status(404).send("Tournament not found");
     }
 
-    const category = await categoriesCollection.findOne({
-      _id: new ObjectId(tournament.id_category),
-    });
+    const category = categories.find(
+      (cat) => cat.id === tournament.id_category
+    );
     if (!category) {
-      return res.status(400).send("Categoría no encontrada para el torneo");
+      return res.status(400).send("Category not found for the tournament");
     }
 
     const specialRules = category.special_rules;
@@ -246,7 +134,7 @@ const addTournamentToPlayer = async (req, res) => {
 
     // Validaciones
     let isValid = true;
-    let message = "El jugador puede ser añadido al torneo";
+    let message = "Player can be added to the tournament";
 
     if (player.position === 1) {
       if (
@@ -255,103 +143,237 @@ const addTournamentToPlayer = async (req, res) => {
           playerAge > specialRules.goalkeeper_age_range.maximum_age)
       ) {
         isValid = false;
-        message = "El portero no cumple con el rango de edad permitido";
+        message = "Goalkeeper does not fall within the allowed age range";
       }
     } else {
       if (specialRules.minimum_age && playerAge < specialRules.minimum_age) {
         const exception = specialRules.exception_age_ranges
-          ? specialRules.exception_age_ranges.some(
-              (range) =>
+          ? specialRules.exception_age_ranges.some((range) => {
+              return (
                 playerAge >= range.minimum_age && playerAge <= range.maximum_age
-            )
+              );
+            })
           : false;
 
         if (!exception) {
           isValid = false;
           message =
-            "El jugador es demasiado joven para esta categoría y no está dentro de los rangos de excepción de edad";
+            "Player is too young for this category and does not fall within any exception age ranges";
         }
       }
 
       if (specialRules.maximum_age && playerAge > specialRules.maximum_age) {
         isValid = false;
-        message = "El jugador es demasiado mayor para esta categoría";
+        message = "Player is too old for this category";
       }
 
       if (specialRules.exception_age_ranges && isValid) {
-        const playersInTournament = await playersCollection
-          .find({ tournaments: new ObjectId(tournamentId) })
-          .toArray();
-
-        const exceptionPlayersCount = playersInTournament.filter((p) => {
-          const age =
-            new Date().getFullYear() - new Date(p.birth_date).getFullYear();
-          return specialRules.exception_age_ranges.some(
-            (range) => age >= range.minimum_age && age <= range.maximum_age
+        const exception = specialRules.exception_age_ranges.some((range) => {
+          return (
+            playerAge >= range.minimum_age && playerAge <= range.maximum_age
           );
-        }).length;
+        });
 
-        if (exceptionPlayersCount >= specialRules.maximum_exceptions) {
-          isValid = false;
-          message =
-            "Se ha alcanzado el número máximo de jugadores con excepción de edad para esta categoría";
+        if (exception) {
+          const playersInTournament = players.filter((p) =>
+            p.tournaments.includes(parseInt(tournamentId))
+          );
+
+          const exceptionPlayersCount = playersInTournament.filter((p) => {
+            const age =
+              new Date().getFullYear() - new Date(p.birth_date).getFullYear();
+            return specialRules.exception_age_ranges.some((range) => {
+              return age >= range.minimum_age && age <= range.maximum_age;
+            });
+          }).length;
+
+          if (exceptionPlayersCount >= specialRules.maximum_exceptions) {
+            isValid = false;
+            message =
+              "Maximum number of exception players reached for this category";
+          }
         }
       }
     }
 
     if (!isValid) {
-      return res.status(400).send({ code: 400, message });
+      return res.status(400).send({
+        code: 400,
+        message,
+      });
     }
 
-    if (!player.tournaments.includes(tournamentId)) {
-      await playersCollection.updateOne(
-        { _id: new ObjectId(playerId) },
-        { $push: { tournaments: new ObjectId(tournamentId) } }
-      );
+    if (!player.tournaments.includes(parseInt(tournamentId))) {
+      player.tournaments.push(parseInt(tournamentId));
     }
+
+    await db
+      .collection("players")
+      .updateOne(
+        { id: parseInt(playerId) },
+        { $set: { tournaments: player.tournaments } }
+      );
 
     res.status(200).send({
       code: 200,
-      message: "Torneo agregado exitosamente al jugador",
+      message: "Tournament successfully added to the player",
+      data: player,
     });
   } catch (err) {
-    console.error("Error en addTournamentToPlayer:", err);
-    res.status(500).send("Error en el servidor");
+    res.status(500).send("Server error");
   }
 };
 
-// Eliminar torneo de un jugador
+// Eliminar un torneo de un jugador
 const removeTournamentFromPlayer = async (req, res) => {
   try {
-    const { playerId, tournamentId } = req.body;
     const db = getDB();
-    const playersCollection = db.collection("players");
+    const { playerId, tournamentId } = req.body;
 
-    const player = await playersCollection.findOne({
-      _id: new ObjectId(playerId),
-    });
+    const players = await db.collection("players").find().toArray();
+
+    const player = players.find((p) => p.id === parseInt(playerId));
     if (!player) {
-      return res.status(404).send("Jugador no encontrado");
+      return res.status(404).send("Player not found");
     }
 
-    if (!player.tournaments.includes(tournamentId)) {
+    const tournamentIndex = player.tournaments.indexOf(parseInt(tournamentId));
+    if (tournamentIndex === -1) {
       return res
         .status(400)
-        .send("El jugador no está registrado en el torneo especificado");
+        .send("Player is not registered in the specified tournament");
     }
 
-    await playersCollection.updateOne(
-      { _id: new ObjectId(playerId) },
-      { $pull: { tournaments: new ObjectId(tournamentId) } }
-    );
+    // Remove the tournament from the player's tournaments list
+    player.tournaments.splice(tournamentIndex, 1);
+
+    await db
+      .collection("players")
+      .updateOne(
+        { id: parseInt(playerId) },
+        { $set: { tournaments: player.tournaments } }
+      );
 
     res.status(200).send({
       code: 200,
-      message: "Torneo eliminado exitosamente del jugador",
+      message: "Tournament successfully removed from the player",
+      data: player,
     });
   } catch (err) {
-    console.error("Error en removeTournamentFromPlayer:", err);
-    res.status(500).send("Error en el servidor");
+    res.status(500).send("Server error");
+  }
+};
+
+// Crear un nuevo jugador
+const createPlayer = async (req, res) => {
+  try {
+    const db = getDB();
+    const { number_id } = req.body;
+
+    const players = await db.collection("players").find().toArray();
+
+    // Verificar si el jugador ya existe
+    const playerExists = players.some(
+      (player) => player.number_id === number_id
+    );
+    if (playerExists) {
+      return res.status(400).send({
+        code: 400,
+        message: "Player with this number_id already exists",
+      });
+    }
+
+    // Crear un nuevo jugador
+    const newPlayer = {
+      id: players.length + 1,
+      ...req.body,
+    };
+    await db.collection("players").insertOne(newPlayer);
+
+    res.status(200).send({
+      code: 200,
+      message: "Player successfully created",
+      data: newPlayer,
+    });
+  } catch (err) {
+    res.status(500).send("Server error");
+  }
+};
+
+// Actualizar un jugador por ID
+const updatePlayer = async (req, res) => {
+  try {
+    const db = getDB();
+    const updatedPlayer = await db
+      .collection("players")
+      .findOneAndUpdate(
+        { id: parseInt(req.params.id) },
+        { $set: req.body },
+        { returnOriginal: false }
+      );
+
+    if (updatedPlayer.value) {
+      res.status(200).send({
+        code: 200,
+        message: "Player successfully updated",
+        data: updatedPlayer.value,
+      });
+    } else {
+      res.status(404).send("Player not found");
+    }
+  } catch (err) {
+    res.status(500).send("Server error");
+  }
+};
+
+// Eliminar un jugador por ID
+const deletePlayer = async (req, res) => {
+  try {
+    const db = getDB();
+    const deletedPlayer = await db
+      .collection("players")
+      .findOneAndDelete({ id: parseInt(req.params.id) });
+
+    if (deletedPlayer.value) {
+      res.status(200).send({
+        code: 200,
+        message: "Player successfully deleted",
+        data: deletedPlayer.value,
+      });
+    } else {
+      res.status(404).send("Player not found");
+    }
+  } catch (err) {
+    res.status(500).send("Server error");
+  }
+};
+
+// Eliminar todos los jugadores por ID de equipo
+const deletePlayersByTeamID = async (req, res) => {
+  try {
+    const db = getDB();
+    const { id_team } = req.params;
+
+    const players = await db.collection("players").find().toArray();
+    const filteredPlayers = players.filter(
+      (player) => player.id_team !== parseInt(id_team)
+    );
+
+    if (filteredPlayers.length === players.length) {
+      return res.status(404).send({
+        code: 404,
+        message: "No players found for the specified team ID",
+      });
+    }
+
+    await db.collection("players").deleteMany({ id_team: parseInt(id_team) });
+
+    res.status(200).send({
+      code: 200,
+      message: "Players successfully deleted",
+    });
+  } catch (err) {
+    res.status(500).send("Server error");
   }
 };
 

@@ -1,5 +1,4 @@
-const { ObjectId } = require("mongodb");
-const { getDB } = require("../../config/db");
+const { getDB } = require("../config/db");
 
 // Obtener todos los eventos
 const getAllEvents = async (req, res) => {
@@ -10,14 +9,14 @@ const getAllEvents = async (req, res) => {
     if (events) {
       res.status(200).send({
         code: 200,
-        message: "Eventos obtenidos exitosamente",
+        message: "Events successfully obtained",
         data: events,
       });
     } else {
-      res.status(500).send("Error al leer los eventos de la base de datos");
+      return res.status(500).send("Error fetching events from database");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -27,19 +26,19 @@ const getEventByID = async (req, res) => {
     const db = getDB();
     const event = await db
       .collection("events")
-      .findOne({ _id:  new ObjectId(req.params.id) });
+      .findOne({ id: parseInt(req.params.id) });
 
     if (event) {
       res.status(200).send({
         code: 200,
-        message: "Evento obtenido exitosamente",
+        message: "Event successfully obtained",
         data: event,
       });
     } else {
-      res.status(404).send("Evento no encontrado");
+      res.status(404).send("Event not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -49,20 +48,26 @@ const createEvent = async (req, res) => {
     const db = getDB();
     const { id_player, id_match, id_event_type } = req.body;
 
-    // Verificar si el jugador ya tiene una tarjeta roja o dos amarillas
-    const playerEvents = await db
-      .collection("events")
-      .find({
-        id_player:  new ObjectId(id_player),
-        id_match:  new ObjectId(id_match),
-      })
+    const events = await db.collection("events").find().toArray();
+    const matches = await db.collection("matches").find().toArray();
+    const players = await db.collection("players").find().toArray();
+    const classifications = await db
+      .collection("classifications")
+      .find()
       .toArray();
+    const penalties = await db.collection("penalties").find().toArray();
+    const playerStats = await db.collection("player_stats").find().toArray();
+
+    // Verificar si el jugador ya tiene un evento de tipo 3 (tarjeta roja) o dos eventos de tipo 2 (tarjetas amarillas) en este partido
+    const playerEvents = events.filter(
+      (event) => event.id_player === id_player && event.id_match === id_match
+    );
 
     const redCardEvent = playerEvents.find(
-      (event) => event.id_event_type === "66da8614ad4a8cc7df6ac87b"
+      (event) => event.id_event_type === 3
     );
     const yellowCardEvents = playerEvents.filter(
-      (event) => event.id_event_type === "66da8614ad4a8cc7df6ac87a"
+      (event) => event.id_event_type === 2
     );
 
     if (redCardEvent || yellowCardEvents.length >= 2) {
@@ -74,118 +79,94 @@ const createEvent = async (req, res) => {
     }
 
     const newEvent = {
-      id_player:  new ObjectId(id_player),
-      id_match:  new ObjectId(id_match),
-      id_event_type:  new ObjectId(id_event_type),
+      id: events.length + 1,
+      ...req.body,
     };
-
     await db.collection("events").insertOne(newEvent);
 
-    // Actualizar el resultado del partido
-    const match = await db
-      .collection("matches")
-      .findOne({ _id:  new ObjectId(id_match) });
-    const player = await db
-      .collection("players")
-      .findOne({ _id:  new ObjectId(id_player) });
+    // Actualizar el resultado del partido y las estadísticas si el tipo de evento es relevante
+    if (newEvent.id_event_type === 1) {
+      // Actualizar resultado del partido
+      const match = matches.find((m) => m.id === newEvent.id_match);
+      const player = players.find((p) => p.id === newEvent.id_player);
 
-    if (id_event_type === "66da8614ad4a8cc7df6ac879") {
-      const isLocalTeam =
-        match.local_team.toString() === player.id_team.toString();
-      const updatedScore = isLocalTeam
-        ? { local_result: match.local_result + 1 }
-        : { visiting_result: match.visiting_result + 1 };
-
-      await db
-        .collection("matches")
-        .updateOne({ _id:  new ObjectId(id_match) }, { $set: updatedScore });
+      if (match && player) {
+        const isLocalTeam = match.local_team === player.id_team;
+        if (isLocalTeam) {
+          match.local_result += 1;
+        } else {
+          match.visiting_result += 1;
+        }
+        await db
+          .collection("matches")
+          .updateOne({ id: match.id }, { $set: match });
+      }
     }
 
-    // Otros tipos de eventos
-    if (id_event_type === "66da8614ad4a8cc7df6ac87d") {
-      await db
-        .collection("matches")
-        .updateOne(
-          { _id:  new ObjectId(id_match) },
-          { $set: { status: "66dab91fa45789574acff524" } }
-        );
-    } else if (id_event_type === 7) {
-      await db
-        .collection("matches")
-        .updateOne(
-          { _id:  new ObjectId(id_match) },
-          { $set: { status: "66dab91fa45789574acff525" } }
-        );
-      // Actualizar clasificaciones
-      await updateClassifications(db, match);
+    // Si el tipo de evento es tarjeta roja o amarilla, actualizar estadísticas
+    let playerStat = playerStats.find(
+      (ps) =>
+        ps.id_player === newEvent.id_player &&
+        ps.id_tournament === newEvent.id_tournament
+    );
+
+    if (!playerStat) {
+      playerStat = {
+        id: playerStats.length + 1,
+        id_player: newEvent.id_player,
+        id_tournament: newEvent.id_tournament,
+        games_played: 0,
+        goals: 0,
+        yellow_cards: 0,
+        red_cards: 0,
+      };
+      await db.collection("player_stats").insertOne(playerStat);
     }
+
+    if (newEvent.id_event_type === 1) {
+      playerStat.goals += 1;
+    } else if (newEvent.id_event_type === 2) {
+      playerStat.yellow_cards += 1;
+
+      if (yellowCardEvents.length + 1 >= 2) {
+        const penalty = {
+          id: penalties.length + 1,
+          id_player: newEvent.id_player,
+          id_tournament: newEvent.id_tournament,
+          date: new Date().toISOString().split("T")[0],
+          description: "Suspendido por acumulación de tarjetas amarillas",
+          sanction_duration: 1,
+          status: "Vigente",
+        };
+        await db.collection("penalties").insertOne(penalty);
+      }
+    } else if (newEvent.id_event_type === 3) {
+      playerStat.red_cards += 1;
+
+      const penalty = {
+        id: penalties.length + 1,
+        id_player: newEvent.id_player,
+        id_tournament: newEvent.id_tournament,
+        date: new Date().toISOString().split("T")[0],
+        description: "Suspendido por tarjeta roja directa",
+        sanction_duration: 1,
+        status: "Vigente",
+      };
+      await db.collection("penalties").insertOne(penalty);
+    }
+
+    await db
+      .collection("player_stats")
+      .updateOne({ id: playerStat.id }, { $set: playerStat });
 
     res.status(200).send({
       code: 200,
-      message: "Evento creado exitosamente",
+      message: "Event successfully created",
       data: newEvent,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
-  }
-};
-
-// Actualizar clasificaciones
-const updateClassifications = async (db, match) => {
-  const localTeam = await db.collection("classifications").findOne({
-    id_team:  new ObjectId(match.local_team),
-    id_tournament:  new ObjectId(match.id_tournament),
-  });
-  const visitingTeam = await db.collection("classifications").findOne({
-    id_team:  new ObjectId(match.visiting_team),
-    id_tournament:  new ObjectId(match.id_tournament),
-  });
-
-  if (localTeam && visitingTeam) {
-    await db
-      .collection("classifications")
-      .updateMany(
-        { _id: { $in: [localTeam._id, visitingTeam._id] } },
-        { $inc: { matches_played: 1 } }
-      );
-
-    const updates = [
-      {
-        id: localTeam._id,
-        favor_goals: match.local_result,
-        goals_against: match.visiting_result,
-        points:
-          match.local_result > match.visiting_result
-            ? 3
-            : match.local_result === match.visiting_result
-            ? 1
-            : 0,
-      },
-      {
-        id: visitingTeam._id,
-        favor_goals: match.visiting_result,
-        goals_against: match.local_result,
-        points:
-          match.visiting_result > match.local_result
-            ? 3
-            : match.visiting_result === match.local_result
-            ? 1
-            : 0,
-      },
-    ];
-
-    for (const update of updates) {
-      await db.collection("classifications").updateOne(
-        { _id: update.id },
-        {
-          $inc: {
-            favor_goals: update.favor_goals,
-            goals_against: update.goals_against,
-            points: update.points,
-          },
-        }
-      );
-    }
+    console.error("Error in createEvent:", err);
+    res.status(500).send("Server error");
   }
 };
 
@@ -193,24 +174,25 @@ const updateClassifications = async (db, match) => {
 const updateEvent = async (req, res) => {
   try {
     const db = getDB();
-    const eventId = new ObjectId(req.params.id);
-    const updatedEvent = req.body;
-
-    const result = await db
+    const updatedEvent = await db
       .collection("events")
-      .updateOne({ _id: eventId }, { $set: updatedEvent });
+      .findOneAndUpdate(
+        { id: parseInt(req.params.id) },
+        { $set: req.body },
+        { returnOriginal: false }
+      );
 
-    if (result.matchedCount > 0) {
+    if (updatedEvent.value) {
       res.status(200).send({
         code: 200,
-        message: "Evento actualizado exitosamente",
-        data: updatedEvent,
+        message: "Event successfully updated",
+        data: updatedEvent.value,
       });
     } else {
-      res.status(404).send("Evento no encontrado");
+      res.status(404).send("Event not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -218,20 +200,21 @@ const updateEvent = async (req, res) => {
 const deleteEvent = async (req, res) => {
   try {
     const db = getDB();
-    const eventId = new ObjectId(req.params.id);
+    const deletedEvent = await db
+      .collection("events")
+      .findOneAndDelete({ id: parseInt(req.params.id) });
 
-    const result = await db.collection("events").deleteOne({ _id: eventId });
-
-    if (result.deletedCount > 0) {
+    if (deletedEvent.value) {
       res.status(200).send({
         code: 200,
-        message: "Evento eliminado exitosamente",
+        message: "Event successfully deleted",
+        data: deletedEvent.value,
       });
     } else {
-      res.status(404).send("Evento no encontrado");
+      res.status(404).send("Event not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 

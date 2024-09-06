@@ -1,5 +1,4 @@
-const { ObjectId } = require("mongodb");
-const { getDB } = require("../../config/db");
+const { getDB } = require("../config/db");
 
 // Obtener todos los grupos con información del torneo
 const getAllGroups = async (req, res) => {
@@ -11,26 +10,26 @@ const getAllGroups = async (req, res) => {
     if (groups && tournaments) {
       const groupsWithTournament = groups.map((group) => {
         const tournament = tournaments.find(
-          (t) => t._id.toString() === group.id_tournament.toString()
+          (t) => t.id === group.id_tournament
         );
         return {
           ...group,
-          tournament: tournament || null,
+          tournament: tournament ? tournament : null,
         };
       });
 
       res.status(200).send({
         code: 200,
-        message: "Grupos obtenidos exitosamente",
+        message: "Groups successfully obtained",
         data: groupsWithTournament,
       });
     } else {
       return res
         .status(500)
-        .send("Error al leer los grupos o torneos de la base de datos");
+        .send("Error fetching groups or tournaments from database");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -40,25 +39,25 @@ const getGroupByID = async (req, res) => {
     const db = getDB();
     const group = await db
       .collection("groups")
-      .findOne({ _id:  new ObjectId(req.params.id) });
-    const tournament = await db
-      .collection("tournaments")
-      .findOne({ _id:  new ObjectId(group.id_tournament) });
+      .findOne({ id: parseInt(req.params.id) });
+    const tournament = group
+      ? await db.collection("tournaments").findOne({ id: group.id_tournament })
+      : null;
 
     if (group) {
       res.status(200).send({
         code: 200,
-        message: "Grupo obtenido exitosamente",
+        message: "Group successfully obtained",
         data: {
           ...group,
-          tournament: tournament || null,
+          tournament: tournament ? tournament : null,
         },
       });
     } else {
-      res.status(404).send("Grupo no encontrado");
+      res.status(404).send("Group not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -66,27 +65,26 @@ const getGroupByID = async (req, res) => {
 const getGroupsByTournamentID = async (req, res) => {
   try {
     const db = getDB();
-    const tournamentId = new ObjectId(req.params.id);
-
     const tournament = await db
       .collection("tournaments")
-      .findOne({ _id: tournamentId });
+      .findOne({ id: parseInt(req.params.id) });
+
     if (!tournament) {
-      return res.status(404).send("Torneo no encontrado");
+      return res.status(404).send("Tournament not found");
     }
 
-    const groups = await db
+    const tournamentGroups = await db
       .collection("groups")
-      .find({ id_tournament: tournamentId })
+      .find({ id_tournament: tournament.id })
       .toArray();
 
     res.status(200).send({
       code: 200,
-      message: "Grupos obtenidos exitosamente",
-      data: groups,
+      message: "Groups successfully obtained",
+      data: tournamentGroups,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -94,75 +92,87 @@ const getGroupsByTournamentID = async (req, res) => {
 const createGroup = async (req, res) => {
   try {
     const db = getDB();
+    const groups = await db.collection("groups").find().toArray();
+
     const newGroup = {
+      id: groups.length + 1, // O utilizar una estrategia de generación de IDs de MongoDB
       ...req.body,
-      id_tournament: new ObjectId(req.body.id_tournament),
     };
 
-    const result = await db.collection("groups").insertOne(newGroup);
+    await db.collection("groups").insertOne(newGroup);
+
     res.status(200).send({
       code: 200,
-      message: "Grupo creado exitosamente",
-      data: result[0],
+      message: "Group successfully created",
+      data: newGroup,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
 // Crear un nuevo registro en teams_groups
 const createTeamGroup = async (req, res) => {
-  console.log(req.body);
   try {
     const db = getDB();
     const { id_team, id_group } = req.body;
 
+    // Validar que los campos necesarios están presentes
     if (!Array.isArray(id_team) || id_team.length === 0 || !id_group) {
       return res.status(400).send({
         code: 400,
-        message:
-          "El campo id_team debe ser un array no vacío, y id_group es requerido",
+        message: "id_team must be a non-empty array and id_group is required",
       });
     }
 
-    const group = await db
-      .collection("groups")
-      .findOne({ _id:  new ObjectId(id_group) });
+    const group = await db.collection("groups").findOne({ id: id_group });
     if (!group) {
       return res.status(404).send({
         code: 404,
-        message: "Grupo no encontrado",
+        message: "Group not found",
       });
     }
 
-    const newTeamGroups = id_team.map((teamId) => ({
-      id_team: new ObjectId(teamId),
-      id_group:  new ObjectId(id_group),
-    }));
+    const newTeamGroups = [];
+    const newClassifications = [];
 
-    const newClassifications = id_team.map((teamId) => ({
-      id_tournament: group.id_tournament,
-      id_group:  new ObjectId(id_group),
-      id_team:  new ObjectId(teamId),
-      points: 0,
-      matches_played: 0,
-      matches_won: 0,
-      tied_matches: 0,
-      lost_matches: 0,
-      favor_goals: 0,
-      goals_against: 0,
-      goal_difference: 0,
-    }));
+    id_team.forEach((teamId) => {
+      // Crear un nuevo registro en teams_groups
+      const newTeamGroup = {
+        id: newTeamGroups.length + 1,
+        id_team: teamId,
+        id_group,
+      };
+      newTeamGroups.push(newTeamGroup);
 
+      // Crear un nuevo registro en classifications
+      const newClassification = {
+        id: newClassifications.length + 1,
+        id_tournament: group.id_tournament,
+        id_group,
+        id_team: teamId,
+        points: 0,
+        matches_played: 0,
+        matches_won: 0,
+        tied_matches: 0,
+        lost_matches: 0,
+        favor_goals: 0,
+        goals_against: 0,
+        goal_difference: 0,
+      };
+      newClassifications.push(newClassification);
+    });
+
+    // Insertar los nuevos registros en las colecciones de MongoDB
     await db.collection("teams_groups").insertMany(newTeamGroups);
     await db.collection("classifications").insertMany(newClassifications);
 
     res.status(200).send({
       code: 200,
-      message: "Equipos y clasificaciones creados exitosamente",
+      message: "Team groups and classifications successfully created",
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -170,24 +180,25 @@ const createTeamGroup = async (req, res) => {
 const updateGroup = async (req, res) => {
   try {
     const db = getDB();
-    const groupId = new ObjectId(req.params.id);
-    const updatedGroup = req.body;
-
-    const result = await db
+    const updatedGroup = await db
       .collection("groups")
-      .updateOne({ _id: groupId }, { $set: updatedGroup });
+      .findOneAndUpdate(
+        { id: parseInt(req.params.id) },
+        { $set: req.body },
+        { returnOriginal: false }
+      );
 
-    if (result.matchedCount > 0) {
+    if (updatedGroup.value) {
       res.status(200).send({
         code: 200,
-        message: "Grupo actualizado exitosamente",
-        data: updatedGroup,
+        message: "Group successfully updated",
+        data: updatedGroup.value,
       });
     } else {
-      res.status(404).send("Grupo no encontrado");
+      res.status(404).send("Group not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -195,20 +206,21 @@ const updateGroup = async (req, res) => {
 const deleteGroup = async (req, res) => {
   try {
     const db = getDB();
-    const groupId = new ObjectId(req.params.id);
+    const deletedGroup = await db
+      .collection("groups")
+      .findOneAndDelete({ id: parseInt(req.params.id) });
 
-    const result = await db.collection("groups").deleteOne({ _id: groupId });
-
-    if (result.deletedCount > 0) {
+    if (deletedGroup.value) {
       res.status(200).send({
         code: 200,
-        message: "Grupo eliminado exitosamente",
+        message: "Group successfully deleted",
+        data: deletedGroup.value,
       });
     } else {
-      res.status(404).send("Grupo no encontrado");
+      res.status(404).send("Group not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 

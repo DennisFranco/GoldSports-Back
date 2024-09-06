@@ -1,5 +1,4 @@
-const { ObjectId } = require("mongodb");
-const { getDB } = require("../../config/db");
+const { getDB } = require("../config/db");
 
 // Obtener todos los números de jugadores en partido
 const getAllMatchPlayersNumbers = async (req, res) => {
@@ -13,16 +12,16 @@ const getAllMatchPlayersNumbers = async (req, res) => {
     if (matchPlayersNumbers) {
       res.status(200).send({
         code: 200,
-        message: "Números de jugadores en partido obtenidos exitosamente",
+        message: "Match players numbers successfully obtained",
         data: matchPlayersNumbers,
       });
     } else {
       return res
         .status(500)
-        .send("Error al leer los números de jugadores en partido");
+        .send("Error fetching match players numbers from database");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -32,19 +31,19 @@ const getMatchPlayerNumberByID = async (req, res) => {
     const db = getDB();
     const matchPlayerNumber = await db
       .collection("match_players_numbers")
-      .findOne({ _id:  new ObjectId(req.params.id) });
+      .findOne({ id: parseInt(req.params.id) });
 
     if (matchPlayerNumber) {
       res.status(200).send({
         code: 200,
-        message: "Número de jugador en partido obtenido exitosamente",
+        message: "Match player number successfully obtained",
         data: matchPlayerNumber,
       });
     } else {
-      res.status(404).send("Número de jugador en partido no encontrado");
+      res.status(404).send("Match player number not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -52,24 +51,29 @@ const getMatchPlayerNumberByID = async (req, res) => {
 const createMatchPlayerNumbers = async (req, res) => {
   try {
     const db = getDB();
-    const id_match = new ObjectId(req.params.idMatch);
-    const newEntries = Object.entries(req.body).map(([id_player, number]) => ({
-      id_match,
-      id_player:  new ObjectId(id_player),
-      number: number,
-    }));
-
-    const result = await db
+    const matchPlayersNumbers = await db
       .collection("match_players_numbers")
-      .insertMany(newEntries);
+      .find()
+      .toArray();
+
+    const newEntries = Object.entries(req.body).map(
+      ([id_player, number], index) => ({
+        id: matchPlayersNumbers.length + index + 1,
+        id_match: parseInt(req.params.idMatch),
+        id_player: parseInt(id_player),
+        number: number,
+      })
+    );
+
+    await db.collection("match_players_numbers").insertMany(newEntries);
 
     res.status(200).send({
       code: 200,
-      message: "Números de jugadores en partido creados exitosamente",
-      data: result.ops,
+      message: "Match player numbers successfully created",
+      data: newEntries,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 

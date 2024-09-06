@@ -1,5 +1,4 @@
-const { getDB } = require("../../config/db");
-const { ObjectId } = require("mongodb");
+const { getDB } = require("../config/db");
 
 // Obtener todas las estadísticas de jugadores
 const getAllPlayerStats = async (req, res) => {
@@ -10,16 +9,14 @@ const getAllPlayerStats = async (req, res) => {
     if (playerStats) {
       res.status(200).send({
         code: 200,
-        message: "Estadísticas de jugadores obtenidas exitosamente",
+        message: "Player stats successfully obtained",
         data: playerStats,
       });
     } else {
-      return res
-        .status(500)
-        .send("Error al leer las estadísticas de jugadores");
+      return res.status(500).send("Error fetching player stats from database");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -28,21 +25,21 @@ const getPlayerStatsByPlayerAndTournament = async (req, res) => {
   try {
     const db = getDB();
     const stats = await db.collection("player_stats").findOne({
-      id_player:  new ObjectId(req.params.playerId),
-      id_tournament:  new ObjectId(req.params.tournamentId),
+      id_player: parseInt(req.params.playerId),
+      id_tournament: parseInt(req.params.tournamentId),
     });
 
     if (stats) {
       res.status(200).send({
         code: 200,
-        message: "Estadísticas del jugador obtenidas exitosamente",
+        message: "Player stats successfully obtained",
         data: stats,
       });
     } else {
-      res.status(404).send("Estadísticas del jugador no encontradas");
+      res.status(404).send("Player stats not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -50,16 +47,22 @@ const getPlayerStatsByPlayerAndTournament = async (req, res) => {
 const createPlayerStats = async (req, res) => {
   try {
     const db = getDB();
-    const newStats = { ...req.body };
-    const result = await db.collection("player_stats").insertOne(newStats);
+    const playerStats = await db.collection("player_stats").find().toArray();
+
+    const newStats = {
+      id: playerStats.length + 1, // O usar un enfoque más robusto para IDs
+      ...req.body,
+    };
+
+    await db.collection("player_stats").insertOne(newStats);
 
     res.status(200).send({
       code: 200,
-      message: "Estadísticas del jugador creadas exitosamente",
-      data: result.ops[0], // Retorna el documento creado
+      message: "Player stats successfully created",
+      data: newStats,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -67,28 +70,26 @@ const createPlayerStats = async (req, res) => {
 const updatePlayerStats = async (req, res) => {
   try {
     const db = getDB();
-    const updatedStats = { ...req.body };
-
-    const result = await db.collection("player_stats").findOneAndUpdate(
+    const updatedStats = await db.collection("player_stats").findOneAndUpdate(
       {
-        id_player:  new ObjectId(req.params.playerId),
-        id_tournament:  new ObjectId(req.params.tournamentId),
+        id_player: parseInt(req.params.playerId),
+        id_tournament: parseInt(req.params.tournamentId),
       },
-      { $set: updatedStats },
+      { $set: req.body },
       { returnOriginal: false }
     );
 
-    if (result.value) {
+    if (updatedStats.value) {
       res.status(200).send({
         code: 200,
-        message: "Estadísticas del jugador actualizadas exitosamente",
-        data: result.value,
+        message: "Player stats successfully updated",
+        data: updatedStats.value,
       });
     } else {
-      res.status(404).send("Estadísticas del jugador no encontradas");
+      res.status(404).send("Player stats not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -96,22 +97,22 @@ const updatePlayerStats = async (req, res) => {
 const deletePlayerStats = async (req, res) => {
   try {
     const db = getDB();
-    const result = await db.collection("player_stats").findOneAndDelete({
-      id_player:  new ObjectId(req.params.playerId),
-      id_tournament:  new ObjectId(req.params.tournamentId),
+    const deletedStats = await db.collection("player_stats").findOneAndDelete({
+      id_player: parseInt(req.params.playerId),
+      id_tournament: parseInt(req.params.tournamentId),
     });
 
-    if (result.value) {
+    if (deletedStats.value) {
       res.status(200).send({
         code: 200,
-        message: "Estadísticas del jugador eliminadas exitosamente",
-        data: result.value,
+        message: "Player stats successfully deleted",
+        data: deletedStats.value,
       });
     } else {
-      res.status(404).send("Estadísticas del jugador no encontradas");
+      res.status(404).send("Player stats not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 

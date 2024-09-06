@@ -1,7 +1,6 @@
-const { getDB } = require("../../config/db");
-const { ObjectId } = require("mongodb");
-const bcrypt = require("bcryptjs");
+const { getDB } = require("../config/db");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 
 // Obtener todos los usuarios
 const getAllUsers = async (req, res) => {
@@ -10,34 +9,36 @@ const getAllUsers = async (req, res) => {
     const users = await db.collection("users").find().toArray();
     const roles = await db.collection("roles").find().toArray();
 
-    if (users) {
-      const roleFilter = req.query.role;
+    if (users && roles) {
+      const roleFilter = parseInt(req.query.role);
 
       // Filtrar usuarios por rol si se proporciona un parámetro de consulta de rol
       const filteredUsers = roleFilter
-        ? users.filter((user) => String(user.role) === roleFilter)
+        ? users.filter((user) => user.role === roleFilter)
         : users;
 
       // Combinar los usuarios con sus roles y excluir la contraseña
       const usersWithRoles = filteredUsers.map((user) => {
-        const rol = roles.find((rol) => rol._id.equals(user.role));
+        const rol = roles.find((rol) => rol.id === user.role);
         const { password, ...userWithoutPassword } = user; // Excluir la contraseña
         return {
           ...userWithoutPassword,
-          nameRole: rol ? rol.name : "Rol no encontrado",
+          nameRole: rol ? rol.name : "Role not found",
         };
       });
 
       res.status(200).send({
         code: 200,
-        message: "Usuarios obtenidos exitosamente",
+        message: "Users successfully obtained",
         data: usersWithRoles,
       });
     } else {
-      return res.status(500).send("Error al obtener usuarios");
+      return res
+        .status(500)
+        .send("Error fetching users or roles from database");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -50,14 +51,14 @@ const getAllRoles = async (req, res) => {
     if (roles) {
       res.status(200).send({
         code: 200,
-        message: "Roles obtenidos exitosamente",
+        message: "Successfully obtained roles",
         data: roles,
       });
     } else {
-      return res.status(500).send("Error al obtener roles");
+      return res.status(500).send("Error fetching roles from database");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -71,7 +72,7 @@ const loginUser = async (req, res) => {
     if (!user) {
       return res.status(401).send({
         code: 401,
-        message: "El usuario no existe",
+        message: "User doesn't exist",
       });
     }
 
@@ -79,28 +80,29 @@ const loginUser = async (req, res) => {
     if (!isMatch) {
       return res.status(401).send({
         code: 401,
-        message: "Contraseña incorrecta",
+        message: "Password incorrect",
       });
     }
 
-    if (user.status !== "66da868c3167557912b2bc51e") {
+    if (user.status !== 1) {
       return res.status(401).send({
         code: 401,
-        message: "Usuario deshabilitado",
+        message: "Disabled user",
       });
     }
 
+    // Crear token JWT
     jwt.sign(
       { user },
       process.env.SECRET_KEY,
       { expiresIn: "8h" },
       (err, token) => {
         if (err) {
-          return res.status(500).send("Error al crear el token");
+          return res.status(500).send("Error creating token");
         }
         return res.status(200).send({
           code: 200,
-          message: "Inicio de sesión exitoso",
+          message: "Successful login",
           token,
           user: {
             ...user,
@@ -110,7 +112,7 @@ const loginUser = async (req, res) => {
       }
     );
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -122,29 +124,36 @@ const createUser = async (req, res) => {
     if (!name || !email || !password || !role) {
       return res.status(400).send({
         code: 400,
-        message:
-          "Nombre, correo electrónico, contraseña y rol son obligatorios",
+        message: "Name, email, password, and role are required fields",
       });
     }
 
     const db = getDB();
-    const roles = await db.collection("roles").find().toArray();
+    const [users, roles] = await Promise.all([
+      db.collection("users").find().toArray(),
+      db.collection("roles").find().toArray(),
+    ]);
 
-    const validRole = roles.find((r) => r._id.equals(new ObjectId(role)));
+    // Validar rol
+    const validRole = roles.find((r) => r.id === role);
     if (!validRole) {
       return res.status(400).send({
         code: 400,
-        message: "Rol inválido",
+        message: "Invalid role",
       });
     }
 
+    // Encriptar contraseña
     const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Crear nuevo usuario
     const newUser = {
+      id: users.length + 1, // O usar un enfoque de generación de IDs
       name,
       email,
       password: hashedPassword,
-      role:  new ObjectId(role),
-      status: status || "66dab91fa45789574acff51e", // Activo por defecto
+      role,
+      status: status || 1,
       phoneNumber: phoneNumber || "",
     };
 
@@ -152,10 +161,10 @@ const createUser = async (req, res) => {
 
     res.status(200).send({
       code: 200,
-      message: "Usuario creado exitosamente",
+      message: "User successfully created",
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -166,22 +175,24 @@ const editUser = async (req, res) => {
     const { name, email, password, role, status, phoneNumber } = req.body;
 
     const db = getDB();
-    const roles = await db.collection("roles").find().toArray();
-    const user = await db.collection("users").findOne({ _id:  new ObjectId(id) });
+    const [user, roles] = await Promise.all([
+      db.collection("users").findOne({ id: parseInt(id) }),
+      db.collection("roles").find().toArray(),
+    ]);
 
     if (!user) {
       return res.status(404).send({
         code: 404,
-        message: "Usuario no encontrado",
+        message: "User not found",
       });
     }
 
     if (role) {
-      const validRole = roles.find((r) => r._id.equals(new ObjectId(role)));
+      const validRole = roles.find((r) => r.id === role);
       if (!validRole) {
         return res.status(400).send({
           code: 400,
-          message: "Rol inválido",
+          message: "Invalid role",
         });
       }
     }
@@ -196,22 +207,22 @@ const editUser = async (req, res) => {
       name: name || user.name,
       email: email || user.email,
       password: hashedPassword || user.password,
-      role: role ? new ObjectId(role) : user.role,
+      role: role || user.role,
       status: status !== undefined ? status : user.status,
       phoneNumber: phoneNumber || user.phoneNumber,
     };
 
     await db
       .collection("users")
-      .updateOne({ _id:  new ObjectId(id) }, { $set: updatedUser });
+      .updateOne({ id: parseInt(id) }, { $set: updatedUser });
 
     res.status(200).send({
       code: 200,
-      message: "Usuario actualizado exitosamente",
-      data: { ...updatedUser, password: undefined },
+      message: "User successfully updated",
+      data: updatedUser,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 

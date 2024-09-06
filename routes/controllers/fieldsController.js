@@ -1,5 +1,4 @@
-const { ObjectId } = require("mongodb");
-const { getDB } = require("../../config/db");
+const { getDB } = require("../config/db");
 
 // Obtener todas las canchas
 const getAllFields = async (req, res) => {
@@ -10,16 +9,14 @@ const getAllFields = async (req, res) => {
     if (fields) {
       res.status(200).send({
         code: 200,
-        message: "Canchas obtenidas exitosamente",
+        message: "Fields successfully obtained",
         data: fields,
       });
     } else {
-      return res
-        .status(500)
-        .send("Error al leer las canchas de la base de datos");
+      return res.status(500).send("Error fetching fields from database");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -29,19 +26,19 @@ const getFieldByID = async (req, res) => {
     const db = getDB();
     const field = await db
       .collection("fields")
-      .findOne({ _id:  new ObjectId(req.params.id) });
+      .findOne({ id: parseInt(req.params.id) });
 
     if (field) {
       res.status(200).send({
         code: 200,
-        message: "Cancha obtenida exitosamente",
+        message: "Field successfully obtained",
         data: field,
       });
     } else {
-      res.status(404).send("Cancha no encontrada");
+      res.status(404).send("Field not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -49,16 +46,22 @@ const getFieldByID = async (req, res) => {
 const createField = async (req, res) => {
   try {
     const db = getDB();
-    const newField = { ...req.body };
+    const fields = await db.collection("fields").find().toArray();
 
-    const result = await db.collection("fields").insertOne(newField);
+    const newField = {
+      id: fields.length + 1, // Puedes usar un enfoque para asegurar IDs únicos.
+      ...req.body,
+    };
+
+    await db.collection("fields").insertOne(newField);
+
     res.status(200).send({
       code: 200,
-      message: "Cancha creada exitosamente",
-      data: result.ops[0],
+      message: "Field successfully created",
+      data: newField,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -66,24 +69,25 @@ const createField = async (req, res) => {
 const updateField = async (req, res) => {
   try {
     const db = getDB();
-    const fieldId = new ObjectId(req.params.id);
-    const updatedField = req.body;
-
-    const result = await db
+    const updatedField = await db
       .collection("fields")
-      .updateOne({ _id: fieldId }, { $set: updatedField });
+      .findOneAndUpdate(
+        { id: parseInt(req.params.id) },
+        { $set: req.body },
+        { returnOriginal: false }
+      );
 
-    if (result.matchedCount > 0) {
+    if (updatedField.value) {
       res.status(200).send({
         code: 200,
-        message: "Cancha actualizada exitosamente",
-        data: updatedField,
+        message: "Field successfully updated",
+        data: updatedField.value,
       });
     } else {
-      res.status(404).send("Cancha no encontrada");
+      res.status(404).send("Field not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -91,20 +95,21 @@ const updateField = async (req, res) => {
 const deleteField = async (req, res) => {
   try {
     const db = getDB();
-    const fieldId = new ObjectId(req.params.id);
+    const deletedField = await db
+      .collection("fields")
+      .findOneAndDelete({ id: parseInt(req.params.id) });
 
-    const result = await db.collection("fields").deleteOne({ _id: fieldId });
-
-    if (result.deletedCount > 0) {
+    if (deletedField.value) {
       res.status(200).send({
         code: 200,
-        message: "Cancha eliminada exitosamente",
+        message: "Field successfully deleted",
+        data: deletedField.value,
       });
     } else {
-      res.status(404).send("Cancha no encontrada");
+      res.status(404).send("Field not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 

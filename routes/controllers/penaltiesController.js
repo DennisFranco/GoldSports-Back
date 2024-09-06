@@ -1,5 +1,4 @@
-const { getDB } = require("../../config/db");
-const { ObjectId } = require("mongodb");
+const { getDB } = require("../config/db");
 
 // Obtener todas las sanciones
 const getAllPenalties = async (req, res) => {
@@ -10,14 +9,14 @@ const getAllPenalties = async (req, res) => {
     if (penalties) {
       res.status(200).send({
         code: 200,
-        message: "Sanciones obtenidas exitosamente",
+        message: "Penalties successfully obtained",
         data: penalties,
       });
     } else {
-      return res.status(500).send("Error al leer las sanciones");
+      return res.status(500).send("Error fetching penalties from database");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -27,19 +26,19 @@ const getPenaltyByID = async (req, res) => {
     const db = getDB();
     const penalty = await db
       .collection("penalties")
-      .findOne({ _id:  new ObjectId(req.params.id) });
+      .findOne({ id: parseInt(req.params.id) });
 
     if (penalty) {
       res.status(200).send({
         code: 200,
-        message: "Sanción obtenida exitosamente",
+        message: "Penalty successfully obtained",
         data: penalty,
       });
     } else {
-      res.status(404).send("Sanción no encontrada");
+      res.status(404).send("Penalty not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -47,17 +46,22 @@ const getPenaltyByID = async (req, res) => {
 const createPenalty = async (req, res) => {
   try {
     const db = getDB();
-    const newPenalty = { ...req.body };
+    const penalties = await db.collection("penalties").find().toArray();
 
-    const result = await db.collection("penalties").insertOne(newPenalty);
+    const newPenalty = {
+      id: penalties.length + 1, // O usar un enfoque más robusto para IDs
+      ...req.body,
+    };
+
+    await db.collection("penalties").insertOne(newPenalty);
 
     res.status(200).send({
       code: 200,
-      message: "Sanción creada exitosamente",
-      data: result.ops[0], // Devolver el objeto creado
+      message: "Penalty successfully created",
+      data: newPenalty,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -65,27 +69,25 @@ const createPenalty = async (req, res) => {
 const updatePenalty = async (req, res) => {
   try {
     const db = getDB();
-    const updatedPenalty = { ...req.body };
-
-    const result = await db
+    const updatedPenalty = await db
       .collection("penalties")
       .findOneAndUpdate(
-        { _id:  new ObjectId(req.params.id) },
-        { $set: updatedPenalty },
+        { id: parseInt(req.params.id) },
+        { $set: req.body },
         { returnOriginal: false }
       );
 
-    if (result.value) {
+    if (updatedPenalty.value) {
       res.status(200).send({
         code: 200,
-        message: "Sanción actualizada exitosamente",
-        data: result.value,
+        message: "Penalty successfully updated",
+        data: updatedPenalty.value,
       });
     } else {
-      res.status(404).send("Sanción no encontrada");
+      res.status(404).send("Penalty not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
@@ -93,21 +95,21 @@ const updatePenalty = async (req, res) => {
 const deletePenalty = async (req, res) => {
   try {
     const db = getDB();
-    const result = await db
+    const deletedPenalty = await db
       .collection("penalties")
-      .findOneAndDelete({ _id:  new ObjectId(req.params.id) });
+      .findOneAndDelete({ id: parseInt(req.params.id) });
 
-    if (result.value) {
+    if (deletedPenalty.value) {
       res.status(200).send({
         code: 200,
-        message: "Sanción eliminada exitosamente",
-        data: result.value,
+        message: "Penalty successfully deleted",
+        data: deletedPenalty.value,
       });
     } else {
-      res.status(404).send("Sanción no encontrada");
+      res.status(404).send("Penalty not found");
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send("Server error");
   }
 };
 
