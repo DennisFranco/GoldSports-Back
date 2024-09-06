@@ -1,157 +1,123 @@
-const fs = require("fs");
-const path = require("path");
-
-const categoriesPath = path.join(__dirname, "../../db/categories.json");
-
-const getJSONData = (filePath) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(JSON.parse(data));
-      }
-    });
-  });
-};
-
-const writeJSONData = (filePath, data) => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8", (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
+const { getDB } = require("../../config/db");
+const { ObjectId } = require("mongodb");
 
 // Obtener todas las categorías
 const getAllCategories = async (req, res) => {
   try {
-    const categories = await getJSONData(categoriesPath);
+    const db = getDB();
+    const categories = await db.collection("categories").find().toArray();
 
-    if (categories) {
-      res.status(200).send({
-        code: 200,
-        message: "Categories successfully obtained",
-        data: categories,
-      });
-    } else {
-      return res.status(500).send("Error reading categories from file");
-    }
+    res.status(200).send({
+      code: 200,
+      message: "Categorías obtenidas exitosamente",
+      data: categories,
+    });
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
-// Obtener una categoría por ID
+// Obtener una categoría por _id
 const getCategoryByID = async (req, res) => {
   try {
-    const categories = await getJSONData(categoriesPath);
+    const db = getDB();
+    const category = await db
+      .collection("categories")
+      .findOne({ _id: new ObjectId(req.params.id) });
 
-    if (categories) {
-      const category = categories.find((c) => c.id === parseInt(req.params.id));
-      if (category) {
-        res.status(200).send({
-          code: 200,
-          message: "Category successfully obtained",
-          data: category,
-        });
-      } else {
-        res.status(404).send("Category not found");
-      }
+    if (category) {
+      res.status(200).send({
+        code: 200,
+        message: "Categoría obtenida exitosamente",
+        data: category,
+      });
     } else {
-      return res.status(500).send("Error reading categories from file");
+      res.status(404).send("Categoría no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Crear una nueva categoría
 const createCategory = async (req, res) => {
   try {
-    const categories = await getJSONData(categoriesPath);
     const { name, description, special_rules } = req.body;
 
     // Validar campos requeridos
     if (!name || !description || !special_rules) {
       return res.status(400).send({
         code: 400,
-        message: "Name, description, and special_rules are required fields",
+        message:
+          "Los campos 'nombre', 'descripción' y 'reglas especiales' son obligatorios",
       });
     }
 
-    // Crear nueva categoría
+    const db = getDB();
+
     const newCategory = {
-      id: categories.length + 1,
       name,
       description,
       special_rules,
     };
 
-    // Agregar categoría al array
-    categories.push(newCategory);
-
-    // Escribir datos actualizados en el archivo
-    await writeJSONData(categoriesPath, categories);
+    const result = await db.collection("categories").insertOne(newCategory);
 
     res.status(200).send({
       code: 200,
-      message: "Category successfully created",
-      data: newCategory,
+      message: "Categoría creada exitosamente",
+      data: { _id: result.insertedId, ...newCategory },
     });
   } catch (err) {
-    console.error("Error in createCategory:", err);
-    res.status(500).send("Server error");
+    console.error("Error al crear categoría:", err);
+    res.status(500).send("Error del servidor");
   }
 };
 
-// Actualizar una categoría por ID
+// Actualizar una categoría por _id
 const updateCategory = async (req, res) => {
   try {
-    const categories = await getJSONData(categoriesPath);
-    const categoryIndex = categories.findIndex(
-      (c) => c.id === parseInt(req.params.id)
-    );
-    if (categoryIndex !== -1) {
-      categories[categoryIndex] = { id: parseInt(req.params.id), ...req.body };
-      await writeJSONData(categoriesPath, categories);
+    const db = getDB();
+    const updatedCategory = await db
+      .collection("categories")
+      .findOneAndUpdate(
+        { _id: new ObjectId(req.params.id) },
+        { $set: req.body },
+        { returnOriginal: false }
+      );
+
+    if (updatedCategory.value) {
       res.status(200).send({
         code: 200,
-        message: "Category successfully updated",
-        data: categories[categoryIndex],
+        message: "Categoría actualizada exitosamente",
+        data: updatedCategory.value,
       });
     } else {
-      res.status(404).send("Category not found");
+      res.status(404).send("Categoría no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
-// Eliminar una categoría por ID
+// Eliminar una categoría por _id
 const deleteCategory = async (req, res) => {
   try {
-    const categories = await getJSONData(categoriesPath);
-    const categoryIndex = categories.findIndex(
-      (c) => c.id === parseInt(req.params.id)
-    );
-    if (categoryIndex !== -1) {
-      const deletedCategory = categories.splice(categoryIndex, 1);
-      await writeJSONData(categoriesPath, categories);
+    const db = getDB();
+    const result = await db
+      .collection("categories")
+      .deleteOne({ _id: new ObjectId(req.params.id) });
+
+    if (result.deletedCount > 0) {
       res.status(200).send({
         code: 200,
-        message: "Category successfully deleted",
-        data: deletedCategory,
+        message: "Categoría eliminada exitosamente",
       });
     } else {
-      res.status(404).send("Category not found");
+      res.status(404).send("Categoría no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 

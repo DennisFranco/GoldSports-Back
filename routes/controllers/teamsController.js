@@ -1,68 +1,30 @@
-const fs = require("fs");
-const path = require("path");
-
-const teamsPath = path.join(__dirname, "../../db/teams.json");
-const groupsPath = path.join(__dirname, "../../db/groups.json");
-const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
-const playersPath = path.join(__dirname, "../../db/players.json");
-const matchesPath = path.join(__dirname, "../../db/matches.json");
-const classificationsPath = path.join(
-  __dirname,
-  "../../db/classifications.json"
-);
-const penaltiesPath = path.join(__dirname, "../../db/penalties.json");
-const placesPath = path.join(__dirname, "../../db/fields.json");
-const playerStatsPath = path.join(__dirname, "../../db/player_stats.json");
-const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
-const categoriesPath = path.join(__dirname, "../../db/categories.json");
-const positionsPath = path.join(__dirname, "../../db/positions.json");
-
-const getJSONData = (filePath) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(JSON.parse(data));
-      }
-    });
-  });
-};
-
-const writeJSONData = (filePath, data) => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8", (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
+const { getDB } = require("../../config/db");
+const { ObjectId } = require("mongodb");
 
 // Obtener todos los equipos
 const getAllTeams = async (req, res) => {
-  const teams = await getJSONData(teamsPath);
-
   try {
-    if (teams) {
+    const db = getDB();
+    const teams = await db.collection("teams").find().toArray();
+
+    if (teams.length) {
       res.status(200).send({
         code: 200,
-        message: "Teams successfully obtained",
+        message: "Equipos obtenidos exitosamente",
         data: teams,
       });
     } else {
-      return res.status(500).send("Error reading teams from file");
+      res.status(500).send("Error al leer equipos");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Obtener un equipo por ID con información completa
 const getTeamByID = async (req, res) => {
   try {
+    const db = getDB();
     const [
       teams,
       players,
@@ -77,43 +39,44 @@ const getTeamByID = async (req, res) => {
       categories,
       positions,
     ] = await Promise.all([
-      getJSONData(teamsPath),
-      getJSONData(playersPath),
-      getJSONData(matchesPath),
-      getJSONData(classificationsPath),
-      getJSONData(penaltiesPath),
-      getJSONData(placesPath),
-      getJSONData(groupsPath),
-      getJSONData(playerStatsPath),
-      getJSONData(tournamentsPath),
-      getJSONData(teamsGroupsPath),
-      getJSONData(categoriesPath),
-      getJSONData(positionsPath),
+      db.collection("teams").find().toArray(),
+      db.collection("players").find().toArray(),
+      db.collection("matches").find().toArray(),
+      db.collection("classifications").find().toArray(),
+      db.collection("penalties").find().toArray(),
+      db.collection("fields").find().toArray(),
+      db.collection("groups").find().toArray(),
+      db.collection("player_stats").find().toArray(),
+      db.collection("tournaments").find().toArray(),
+      db.collection("teams_groups").find().toArray(),
+      db.collection("categories").find().toArray(),
+      db.collection("positions").find().toArray(),
     ]);
 
-    const team = teams.find((t) => t.id === parseInt(req.params.id));
+    const team = teams.find((t) => t._id.toString() === req.params.id);
     if (!team) {
-      return res.status(404).send("Team not found");
+      return res.status(404).send("Equipo no encontrado");
     }
 
-    // Obtener plantilla
     const plantillaPlayers = players
-      .filter((p) => p.id_team === team.id)
+      .filter((p) => p.id_team.toString() === team._id.toString())
       .map((player) => {
         const stats =
           playerStats.find(
             (ps) =>
-              ps.id_player === player.id &&
-              ps.id_tournament === team.id_tournament
+              ps.id_player.toString() === player._id.toString() &&
+              ps.id_tournament.toString() === team.id_tournament.toString()
           ) || {};
-        const position = positions.find((pos) => pos.id === player.position);
+        const position = positions.find(
+          (pos) => pos._id.toString() === player.position.toString()
+        );
         return {
           ...player,
           matches_played: stats.games_played || 0,
           goals: stats.goals || 0,
           yellow_cards: stats.yellow_cards || 0,
           red_cards: stats.red_cards || 0,
-          position_name: position ? position.name : "Unknown Position",
+          position_name: position ? position.name : "Posición desconocida",
         };
       });
 
@@ -127,22 +90,27 @@ const getTeamByID = async (req, res) => {
     };
 
     // Obtener sanciones
-    const playerIds = new Set(plantillaPlayers.map((player) => player.id));
+    const playerIds = new Set(
+      plantillaPlayers.map((player) => player._id.toString())
+    );
     const sanciones = penalties
-      .filter((p) => playerIds.has(p.id_player))
+      .filter((p) => playerIds.has(p.id_player.toString()))
       .map((penalty) => {
-        const player = players.find((p) => p.id === penalty.id_player);
+        const player = players.find(
+          (p) => p._id.toString() === penalty.id_player.toString()
+        );
         return {
           ...penalty,
-          player_name: player ? player.name : "Unknown Player",
+          player_name: player ? player.name : "Jugador desconocido",
         };
       });
 
-    // Obtener partidos organizados por fecha
+    // Obtener partidos
     const partidos = matches
       .filter(
         (match) =>
-          match.local_team === team.id || match.visiting_team === team.id
+          match.local_team.toString() === team._id.toString() ||
+          match.visiting_team.toString() === team._id.toString()
       )
       .reduce((acc, match) => {
         const date = match.date;
@@ -150,68 +118,76 @@ const getTeamByID = async (req, res) => {
           acc[date] = [];
         }
         const localTeamName =
-          teams.find((t) => t.id === match.local_team)?.name || "Unknown Team";
+          teams.find((t) => t._id.toString() === match.local_team.toString())
+            ?.name || "Equipo desconocido";
         const visitingTeamName =
-          teams.find((t) => t.id === match.visiting_team)?.name ||
-          "Unknown Team";
+          teams.find((t) => t._id.toString() === match.visiting_team.toString())
+            ?.name || "Equipo desconocido";
+        const placeName =
+          places.find((p) => p._id.toString() === match.place?.toString())
+            ?.name || "Lugar desconocido";
 
         acc[date].push({
           ...match,
           local_team: localTeamName,
           visiting_team: visitingTeamName,
-          place:
-            places.find((p) => p.id === match.place)?.name || "Unknown Place",
+          place: placeName,
         });
         return acc;
       }, {});
 
-    // Obtener clasificación organizada por torneo y grupo, filtrada por equipo
+    // Obtener clasificación
     const formattedClassifications = {};
-    const teamGroups = teamsGroups.filter((tg) => tg.id_team === team.id);
+    const teamGroups = teamsGroups.filter(
+      (tg) => tg.id_team.toString() === team._id.toString()
+    );
 
     teamGroups.forEach((teamGroup) => {
-      const group = groups.find((g) => g.id === teamGroup.id_group);
-      const tournament = tournaments.find(
-        (t) => t.id === group.id_tournament
+      const group = groups.find(
+        (g) => g._id.toString() === teamGroup.id_group.toString()
       );
-      const category = tournament
-        ? categories.find((c) => c.id === tournament.id_category)
-        : null;
+      const tournament = tournaments.find(
+        (t) => t._id.toString() === group.id_tournament.toString()
+      );
+      const category = categories.find(
+        (c) => c._id.toString() === tournament.id_category.toString()
+      );
 
-      const tournamentId = tournament ? tournament.id : "Unknown Tournament";
-      const tournamentName = tournament
-        ? `${tournament.name} (${tournament.year}, ${
-            category ? category.name : "Unknown Category"
-          })`
-        : "Unknown Tournament";
-      const groupId = group ? group.id : "Unknown Group";
-      const groupName = group ? group.name : "Unknown Group";
+      const tournamentName = `${tournament.name} (${tournament.year}, ${
+        category?.name || "Categoría desconocida"
+      })`;
+      const groupId = group._id.toString();
 
-      if (!formattedClassifications[tournamentId]) {
-        formattedClassifications[tournamentId] = {
+      if (!formattedClassifications[tournament._id]) {
+        formattedClassifications[tournament._id] = {
           name: tournamentName,
           groups: {},
         };
       }
 
-      if (!formattedClassifications[tournamentId].groups[groupId]) {
-        formattedClassifications[tournamentId].groups[groupId] = {
-          name: groupName,
+      if (!formattedClassifications[tournament._id].groups[groupId]) {
+        formattedClassifications[tournament._id].groups[groupId] = {
+          name: group.name,
           classifications: [],
         };
       }
 
       const groupTeams = teamsGroups
-        .filter((tg) => tg.id_group === group.id)
-        .map((tg) => teams.find((t) => t.id === tg.id_team));
+        .filter((tg) => tg.id_group.toString() === group._id.toString())
+        .map((tg) =>
+          teams.find((t) => t._id.toString() === tg.id_team.toString())
+        );
 
       groupTeams.forEach((groupTeam) => {
         const classification = classifications.find(
           (cls) =>
-            cls.id_group === group.id && cls.id_team === groupTeam.id
+            cls.id_group.toString() === group._id.toString() &&
+            cls.id_team.toString() === groupTeam._id.toString()
         );
 
-        formattedClassifications[tournamentId].groups[groupId].classifications.push({
+        formattedClassifications[tournament._id].groups[
+          groupId
+        ].classifications.push({
           team: groupTeam.name,
           points: classification ? classification.points : 0,
           matches_played: classification ? classification.matches_played : 0,
@@ -225,39 +201,26 @@ const getTeamByID = async (req, res) => {
       });
     });
 
-    // Ordenar clasificaciones
-    for (const tournamentId in formattedClassifications) {
-      for (const groupId in formattedClassifications[tournamentId].groups) {
-        formattedClassifications[tournamentId].groups[groupId].classifications.sort(
-          (a, b) => {
-            if (b.points !== a.points) return b.points - a.points;
-            if (b.goal_difference !== a.goal_difference)
-              return b.goal_difference - a.goal_difference;
-            if (b.favor_goals !== a.favor_goals)
-              return b.favor_goals - a.favor_goals;
-            return a.goals_against - b.goals_against;
-          }
-        );
-      }
-    }
-
-    // Obtener torneos a los que el equipo está inscrito
+    // Obtener torneos
     const teamTournaments = teamsGroups
-      .filter((tg) => tg.id_team === team.id)
+      .filter((tg) => tg.id_team.toString() === team._id.toString())
       .map((tg) => {
-        const group = groups.find((g) => g.id === tg.id_group);
-        const tournament = group
-          ? tournaments.find((t) => t.id === group.id_tournament)
-          : null;
-        const category = tournament
-          ? categories.find((c) => c.id === tournament.id_category)
-          : null;
+        const group = groups.find(
+          (g) => g._id.toString() === tg.id_group.toString()
+        );
+        const tournament = tournaments.find(
+          (t) => t._id.toString() === group.id_tournament.toString()
+        );
+        const category = categories.find(
+          (c) => c._id.toString() === tournament.id_category.toString()
+        );
+
         return tournament
           ? {
-              id: tournament.id,
+              id: tournament._id,
               name: tournament.name,
               year: tournament.year,
-              category: category ? category.name : "Unknown Category",
+              category: category?.name || "Categoría desconocida",
             }
           : null;
       })
@@ -273,185 +236,198 @@ const getTeamByID = async (req, res) => {
 
     res.status(200).send({
       code: 200,
-      message: "Team successfully obtained",
+      message: "Equipo obtenido exitosamente",
       data: response,
     });
   } catch (err) {
-    console.error("Error in getTeamByID:", err);
-    res.status(500).send("Server error");
+    console.error("Error en getTeamByID:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
+// Obtener jugadores por torneo y equipo
 const getPlayersByTournamentAndTeam = async (req, res) => {
   try {
+    const db = getDB();
     const { tournamentId, teamId } = req.params;
-    const [players] = await Promise.all([getJSONData(playersPath)]);
 
-    const filteredPlayers = players
-      .filter(
-        (player) =>
-          player.tournaments.includes(parseInt(tournamentId)) &&
-          player.id_team === parseInt(teamId)
-      )
-      .map((player) => ({
-        id: player.id,
-        name: player.name,
-        age:
-          new Date().getFullYear() - new Date(player.birth_date).getFullYear(),
-      }));
+    const players = await db
+      .collection("players")
+      .find({
+        tournaments: new ObjectId(tournamentId),
+        id_team: new ObjectId(teamId),
+      })
+      .toArray();
+
+    const filteredPlayers = players.map((player) => ({
+      id: player._id,
+      name: player.name,
+      age: new Date().getFullYear() - new Date(player.birth_date).getFullYear(),
+    }));
 
     res.status(200).send({
       code: 200,
-      message: "Players successfully obtained",
+      message: "Jugadores obtenidos exitosamente",
       data: filteredPlayers,
     });
   } catch (err) {
-    console.error("Error in getPlayersByTournamentAndTeam:", err);
-    res.status(500).send("Server error");
+    console.error("Error en getPlayersByTournamentAndTeam:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Crear un nuevo equipo
 const createTeam = async (req, res) => {
   try {
-    const teams = await getJSONData(teamsPath);
+    const db = getDB();
     const newTeam = {
-      id: teams.length + 1,
       ...req.body,
     };
-    teams.push(newTeam);
-    await writeJSONData(teamsPath, teams);
+
+    const result = await db.collection("teams").insertOne(newTeam);
+
     res.status(200).send({
       code: 200,
-      message: "Team successfully created",
-      data: newTeam,
+      message: "Equipo creado exitosamente",
+      data: result.ops[0],
     });
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Actualizar un equipo por ID
 const updateTeam = async (req, res) => {
   try {
-    const teams = await getJSONData(teamsPath);
-    const teamIndex = teams.findIndex((t) => t.id === parseInt(req.params.id));
-    if (teamIndex !== -1) {
-      teams[teamIndex] = { id: parseInt(req.params.id), ...req.body };
-      await writeJSONData(teamsPath, teams);
+    const db = getDB();
+    const teamId = req.params.id;
+
+    const updatedTeam = await db
+      .collection("teams")
+      .findOneAndUpdate(
+        { _id: new ObjectId(teamId) },
+        { $set: req.body },
+        { returnOriginal: false }
+      );
+
+    if (updatedTeam.value) {
       res.status(200).send({
         code: 200,
-        message: "Team successfully updated",
-        data: teams[teamIndex],
+        message: "Equipo actualizado exitosamente",
+        data: updatedTeam.value,
       });
     } else {
-      res.status(404).send("Team not found");
+      res.status(404).send("Equipo no encontrado");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Eliminar un equipo por ID
 const deleteTeam = async (req, res) => {
   try {
-    const teams = await getJSONData(teamsPath);
-    const teamIndex = teams.findIndex((t) => t.id === parseInt(req.params.id));
-    if (teamIndex !== -1) {
-      const deletedTeam = teams.splice(teamIndex, 1);
-      await writeJSONData(teamsPath, teams);
+    const db = getDB();
+    const teamId = req.params.id;
+
+    const deletedTeam = await db.collection("teams").findOneAndDelete({
+      _id: new ObjectId(teamId),
+    });
+
+    if (deletedTeam.value) {
       res.status(200).send({
         code: 200,
-        message: "Team successfully deleted",
-        data: deletedTeam,
+        message: "Equipo eliminado exitosamente",
+        data: deletedTeam.value,
       });
     } else {
-      res.status(404).send("Team not found");
+      res.status(404).send("Equipo no encontrado");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Obtener equipos por torneo
 const getTeamsByTournament = async (req, res) => {
   try {
+    const db = getDB();
     const { id_tournament } = req.params;
 
-    const teams = await getJSONData(teamsPath);
-    const teamsGroups = await getJSONData(teamsGroupsPath);
-    const groups = await getJSONData(groupsPath);
+    // Obtener los grupos del torneo
+    const groups = await db
+      .collection("groups")
+      .find({ id_tournament: new ObjectId(id_tournament) })
+      .toArray();
 
-    // Filtrar grupos por torneo
-    const tournamentGroups = groups.filter(
-      (group) => group.id_tournament === parseInt(id_tournament)
-    );
+    const groupIds = groups.map((group) => group._id);
 
-    // Obtener ids de los grupos del torneo
-    const groupIds = tournamentGroups.map((group) => group.id);
+    // Obtener equipos asociados a los grupos del torneo
+    const teamsGroups = await db
+      .collection("teams_groups")
+      .find({ id_group: { $in: groupIds } })
+      .toArray();
 
-    // Filtrar equipos por grupos del torneo
-    const tournamentTeamsGroups = teamsGroups.filter((tg) =>
-      groupIds.includes(tg.id_group)
-    );
+    const teamIds = teamsGroups.map((tg) => tg.id_team);
 
-    // Obtener ids de los equipos del torneo
-    const teamIds = tournamentTeamsGroups.map((tg) => tg.id_team);
+    // Obtener los detalles de los equipos
+    const teams = await db
+      .collection("teams")
+      .find({ _id: { $in: teamIds.map((id) => new ObjectId(id)) } })
+      .toArray();
 
-    // Filtrar equipos por ids
-    const tournamentTeams = teams
-      .filter((team) => teamIds.includes(team.id))
-      .map((team) => ({
-        id: team.id,
-        name: team.name,
-      }));
+    const tournamentTeams = teams.map((team) => ({
+      id: team._id,
+      name: team.name,
+    }));
 
     res.status(200).send({
       code: 200,
-      message: "Teams successfully obtained for the tournament",
+      message: "Equipos obtenidos exitosamente para el torneo",
       data: tournamentTeams,
     });
   } catch (err) {
-    res.status(500).send("Server error");
+    console.error("Error en getTeamsByTournament:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Obtener equipos sin registro en teams_groups para un torneo específico
 const getTeamsWithoutGroup = async (req, res) => {
   try {
+    const db = getDB();
     const { tournamentId } = req.params;
-    const [teams, teamsGroups, groups] = await Promise.all([
-      getJSONData(teamsPath),
-      getJSONData(teamsGroupsPath),
-      getJSONData(groupsPath),
-    ]);
 
-    // Obtener IDs de grupos en el torneo específico
-    const groupsInTournament = new Set(
-      groups
-        .filter((g) => g.id_tournament === parseInt(tournamentId))
-        .map((g) => g.id)
-    );
+    // Obtener grupos en el torneo específico
+    const groups = await db
+      .collection("groups")
+      .find({ id_tournament: new ObjectId(tournamentId) })
+      .toArray();
 
-    // Obtener IDs de equipos en teams_groups para esos grupos
-    const teamsInGroups = new Set(
-      teamsGroups
-        .filter((tg) => groupsInTournament.has(tg.id_group))
-        .map((tg) => tg.id_team)
-    );
+    const groupIds = groups.map((g) => g._id);
 
-    // Filtrar equipos que no están en esos grupos
-    const teamsWithoutGroup = teams.filter(
-      (team) => !teamsInGroups.has(team.id)
-    );
+    // Obtener equipos ya asociados a esos grupos
+    const teamsInGroups = await db
+      .collection("teams_groups")
+      .find({ id_group: { $in: groupIds } })
+      .toArray();
+
+    const teamIdsInGroups = teamsInGroups.map((tg) => new ObjectId(tg.id_team));
+
+    // Obtener equipos que no están en esos grupos
+    const teamsWithoutGroup = await db
+      .collection("teams")
+      .find({ _id: { $nin: teamIdsInGroups } })
+      .toArray();
 
     res.status(200).send({
       code: 200,
-      message: "Teams without group successfully obtained",
+      message: "Equipos sin grupo obtenidos exitosamente",
       data: teamsWithoutGroup,
     });
   } catch (err) {
-    res.status(500).send("Server error");
+    console.error("Error en getTeamsWithoutGroup:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 

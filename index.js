@@ -3,8 +3,11 @@ const { urlencoded, json } = require("express");
 const router = require("./routes/goldsports.routes");
 const cors = require("cors");
 require("dotenv").config();
+const { connectDB } = require("./config/db");
 
 const app = express();
+
+connectDB();
 
 app.use(urlencoded({ limit: "50mb", extended: true }));
 app.use(json({ limit: "50mb" }));

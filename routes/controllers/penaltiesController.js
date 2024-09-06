@@ -1,136 +1,113 @@
-const fs = require("fs");
-const path = require("path");
-
-const penaltiesPath = path.join(__dirname, "../../db/penalties.json");
-
-const getJSONData = (filePath) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(JSON.parse(data));
-      }
-    });
-  });
-};
-
-const writeJSONData = (filePath, data) => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8", (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
+const { getDB } = require("../../config/db");
+const { ObjectId } = require("mongodb");
 
 // Obtener todas las sanciones
 const getAllPenalties = async (req, res) => {
   try {
-    const penalties = await getJSONData(penaltiesPath);
+    const db = getDB();
+    const penalties = await db.collection("penalties").find().toArray();
+
     if (penalties) {
       res.status(200).send({
         code: 200,
-        message: "Penalties successfully obtained",
+        message: "Sanciones obtenidas exitosamente",
         data: penalties,
       });
     } else {
-      return res.status(500).send("Error reading penalties from file");
+      return res.status(500).send("Error al leer las sanciones");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Obtener una sanción por ID
 const getPenaltyByID = async (req, res) => {
   try {
-    const penalties = await getJSONData(penaltiesPath);
-    if (penalties) {
-      const penalty = penalties.find((p) => p.id === parseInt(req.params.id));
-      if (penalty) {
-        res.status(200).send({
-          code: 200,
-          message: "Penalty successfully obtained",
-          data: penalty,
-        });
-      } else {
-        res.status(404).send("Penalty not found");
-      }
+    const db = getDB();
+    const penalty = await db
+      .collection("penalties")
+      .findOne({ _id: ObjectId(req.params.id) });
+
+    if (penalty) {
+      res.status(200).send({
+        code: 200,
+        message: "Sanción obtenida exitosamente",
+        data: penalty,
+      });
     } else {
-      return res.status(500).send("Error reading penalties from file");
+      res.status(404).send("Sanción no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Crear una nueva sanción
 const createPenalty = async (req, res) => {
   try {
-    const penalties = await getJSONData(penaltiesPath);
-    const newPenalty = {
-      id: penalties.length + 1,
-      ...req.body,
-    };
-    penalties.push(newPenalty);
-    await writeJSONData(penaltiesPath, penalties);
+    const db = getDB();
+    const newPenalty = { ...req.body };
+
+    const result = await db.collection("penalties").insertOne(newPenalty);
+
     res.status(200).send({
       code: 200,
-      message: "Penalty successfully created",
-      data: newPenalty,
+      message: "Sanción creada exitosamente",
+      data: result.ops[0], // Devolver el objeto creado
     });
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Actualizar una sanción por ID
 const updatePenalty = async (req, res) => {
   try {
-    const penalties = await getJSONData(penaltiesPath);
-    const penaltyIndex = penalties.findIndex(
-      (p) => p.id === parseInt(req.params.id)
-    );
-    if (penaltyIndex !== -1) {
-      penalties[penaltyIndex] = { id: parseInt(req.params.id), ...req.body };
-      await writeJSONData(penaltiesPath, penalties);
+    const db = getDB();
+    const updatedPenalty = { ...req.body };
+
+    const result = await db
+      .collection("penalties")
+      .findOneAndUpdate(
+        { _id: ObjectId(req.params.id) },
+        { $set: updatedPenalty },
+        { returnOriginal: false }
+      );
+
+    if (result.value) {
       res.status(200).send({
         code: 200,
-        message: "Penalty successfully updated",
-        data: penalties[penaltyIndex],
+        message: "Sanción actualizada exitosamente",
+        data: result.value,
       });
     } else {
-      res.status(404).send("Penalty not found");
+      res.status(404).send("Sanción no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Eliminar una sanción por ID
 const deletePenalty = async (req, res) => {
   try {
-    const penalties = await getJSONData(penaltiesPath);
-    const penaltyIndex = penalties.findIndex(
-      (p) => p.id === parseInt(req.params.id)
-    );
-    if (penaltyIndex !== -1) {
-      const deletedPenalty = penalties.splice(penaltyIndex, 1);
-      await writeJSONData(penaltiesPath, penalties);
+    const db = getDB();
+    const result = await db
+      .collection("penalties")
+      .findOneAndDelete({ _id: ObjectId(req.params.id) });
+
+    if (result.value) {
       res.status(200).send({
         code: 200,
-        message: "Penalty successfully deleted",
-        data: deletedPenalty,
+        message: "Sanción eliminada exitosamente",
+        data: result.value,
       });
     } else {
-      res.status(404).send("Penalty not found");
+      res.status(404).send("Sanción no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 

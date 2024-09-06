@@ -11,7 +11,6 @@ const tournamentController = require("./controllers/tournamentController.js");
 const categoriesController = require("./controllers/categoriesController.js");
 const groupsController = require("./controllers/groupsController.js");
 const eventsController = require("./controllers/eventsController.js");
-const refereesController = require("./controllers/refereesController.js");
 const matchPlayerNumberController = require("./controllers/matchPlayerNumberController.js");
 const playerStatsController = require("./controllers/playerStatsController.js");
 const penaltiesController = require("./controllers/penaltiesController.js");
@@ -167,11 +166,6 @@ router
   .post("/events", verificarToken, eventsController.createEvent)
   .put("/events/:id", verificarToken, eventsController.updateEvent)
   .delete("/events/:id", verificarToken, eventsController.deleteEvent)
-  .get("/referees", verificarToken, refereesController.getAllReferees)
-  .get("/referees/:id", verificarToken, refereesController.getRefereeByID)
-  .post("/referees", verificarToken, refereesController.createReferee)
-  .put("/referees/:id", verificarToken, refereesController.updateReferee)
-  .delete("/referees/:id", verificarToken, refereesController.deleteReferee)
   .post(
     "/matchPlayersNumbers/:idMatch",
     verificarToken,

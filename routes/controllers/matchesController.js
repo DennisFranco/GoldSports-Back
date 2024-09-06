@@ -1,77 +1,10 @@
-const fs = require("fs");
-const path = require("path");
-const ExcelJS = require("exceljs");
-
-const matchesPath = path.join(__dirname, "../../db/matches.json");
-const fieldsPath = path.join(__dirname, "../../db/fields.json");
-const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
-const teamsPath = path.join(__dirname, "../../db/teams.json");
-const playersPath = path.join(__dirname, "../../db/players.json");
-const eventsPath = path.join(__dirname, "../../db/events.json");
-const matchPlayersNumberPath = path.join(
-  __dirname,
-  "../../db/match_players_number.json"
-);
-const classificationsPath = path.join(
-  __dirname,
-  "../../db/classifications.json"
-);
-const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
-const groupsPath = path.join(__dirname, "../../db/groups.json");
-
-const getJSONData = (filePath) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(JSON.parse(data));
-      }
-    });
-  });
-};
-
-const writeJSONData = (filePath, data) => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8", (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
-const getColombianDate = (date) => {
-  return new Date(
-    new Date(date).toLocaleDateString("en-US", { timeZone: "America/Bogota" })
-  );
-};
-
-const formatDate = (date) => {
-  const day = date
-    .toLocaleDateString("en-US", {
-      weekday: "short",
-      timeZone: "America/Bogota",
-    })
-    .toUpperCase();
-  const month = date
-    .toLocaleDateString("en-US", {
-      month: "short",
-      timeZone: "America/Bogota",
-    })
-    .toUpperCase();
-  const dayOfMonth = date.toLocaleDateString("en-US", {
-    day: "2-digit",
-    timeZone: "America/Bogota",
-  });
-  return `${day} ${dayOfMonth} ${month}.`;
-};
+const { ObjectId } = require("mongodb");
+const { getDB } = require("../../config/db");
 
 // Obtener todos los partidos
 const getAllMatches = async (req, res) => {
   try {
+    const db = getDB();
     const { date } = req.query;
     const queryDate = date ? new Date(date) : new Date();
     const startDate = new Date(queryDate);
@@ -79,10 +12,16 @@ const getAllMatches = async (req, res) => {
     const endDate = new Date(queryDate);
     endDate.setDate(queryDate.getDate() + 7);
 
-    const matches = await getJSONData(matchesPath);
-    const fields = await getJSONData(fieldsPath);
-    const tournaments = await getJSONData(tournamentsPath);
-    const teams = await getJSONData(teamsPath);
+    const matches = await db
+      .collection("matches")
+      .find({
+        date: { $gte: startDate, $lte: endDate },
+      })
+      .toArray();
+
+    const fields = await db.collection("fields").find({}).toArray();
+    const tournaments = await db.collection("tournaments").find({}).toArray();
+    const teams = await db.collection("teams").find({}).toArray();
 
     const formattedMatches = {};
 
@@ -95,7 +34,7 @@ const getAllMatches = async (req, res) => {
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowString = tomorrow.toISOString().split("T")[0];
 
-    // Generate keys for each day in the range
+    // Generar llaves para cada día en el rango
     for (
       let d = new Date(startDate);
       d <= endDate;
@@ -140,15 +79,17 @@ const getAllMatches = async (req, res) => {
         }
 
         const tournament =
-          tournaments.find((t) => t.id === match.id_tournament)?.name ||
-          "Unknown Tournament";
+          tournaments.find((t) => t._id.equals(match.id_tournament))?.name ||
+          "Torneo desconocido";
         const place =
-          fields.find((f) => f.id === match.place)?.name || "Unknown Place";
+          fields.find((f) => f._id.equals(match.place))?.name ||
+          "Lugar desconocido";
         const localTeam =
-          teams.find((t) => t.id === match.local_team)?.name || "Unknown Team";
+          teams.find((t) => t._id.equals(match.local_team))?.name ||
+          "Equipo local desconocido";
         const visitingTeam =
-          teams.find((t) => t.id === match.visiting_team)?.name ||
-          "Unknown Team";
+          teams.find((t) => t._id.equals(match.visiting_team))?.name ||
+          "Equipo visitante desconocido";
 
         let tournamentMatches = formattedMatches[formattedDate].find(
           (t) => t.tournament === tournament
@@ -159,9 +100,9 @@ const getAllMatches = async (req, res) => {
         }
 
         tournamentMatches.matches.push({
-          id: match.id,
+          _id: match._id,
           id_tournament: match.id_tournament,
-          round: match.round || "Unknown Round",
+          round: match.round || "Ronda desconocida",
           team1: localTeam,
           team2: visitingTeam,
           time:
@@ -176,142 +117,40 @@ const getAllMatches = async (req, res) => {
 
     res.status(200).send({
       code: 200,
-      message: "Matches successfully obtained",
+      message: "Partidos obtenidos correctamente",
       data: formattedMatches,
     });
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
   }
 };
 
-// Obtener un partido por ID
+// Obtener un partido por _id
 const getMatchByID = async (req, res) => {
-  const matches = await getJSONData(matchesPath);
-
   try {
-    if (matches) {
-      const match = matches.find((m) => m.id === parseInt(req.params.id));
-      if (match) {
-        res.status(200).send({
-          code: 200,
-          message: "Match successfully obtained",
-          data: match,
-        });
-      } else {
-        res.status(404).send("Match not found");
-      }
-    } else {
-      return res.status(500).send("Error reading matches from file");
-    }
-  } catch (err) {
-    res.status(500).send("Server error");
-  }
-};
+    const db = getDB();
+    const match = await db
+      .collection("matches")
+      .findOne({ _id: new ObjectId(req.params.id) });
 
-const getMatchData = async (req, res) => {
-  try {
-    const [matches, teams, players, events, matchPlayersNumbers] =
-      await Promise.all([
-        getJSONData(matchesPath),
-        getJSONData(teamsPath),
-        getJSONData(playersPath),
-        getJSONData(eventsPath),
-        getJSONData(matchPlayersNumberPath),
-      ]);
-
-    const match = matches.find((m) => m.id === parseInt(req.params.id));
-    if (!match) {
-      return res.status(404).send("Match not found");
-    }
-
-    const homeTeam = teams.find((t) => t.id === match.local_team);
-    const awayTeam = teams.find((t) => t.id === match.visiting_team);
-
-    if (!homeTeam || !awayTeam) {
-      return res.status(404).send("Teams not found");
-    }
-
-    const homePlayers = players.filter(
-      (p) =>
-        p.id_team === homeTeam.id && p.tournaments.includes(match.id_tournament)
-    );
-    const awayPlayers = players.filter(
-      (p) =>
-        p.id_team === awayTeam.id && p.tournaments.includes(match.id_tournament)
-    );
-
-    const matchEvents = events
-      .filter((e) => e.id_match === match.id)
-      .map((e) => {
-        const player = players.find((p) => p.id === e.id_player);
-        return {
-          id: e.id,
-          player: player ? player.name : "Unknown Player",
-          minute: `${e.minute}'`,
-          team: homePlayers.find((p) => p.id === e.id_player) ? "home" : "away",
-          type: e.id_event_type,
-        };
+    if (match) {
+      res.status(200).send({
+        code: 200,
+        message: "Partido obtenido correctamente",
+        data: match,
       });
-
-    const matchPlayersNumbersMap = matchPlayersNumbers.reduce((acc, mpn) => {
-      if (mpn.id_match === match.id) {
-        acc[mpn.id_player] = mpn.number;
-      }
-      return acc;
-    }, {});
-
-    const formatPlayer = (player) => ({
-      id: player.id,
-      name: player.name,
-      position: player.position,
-      number: matchPlayersNumbersMap[player.id] || player.number,
-      status: player.status,
-    });
-
-    let dateMatch = new Date(match.date);
-    const matchDate = getColombianDate(
-      dateMatch.setDate(dateMatch.getDate() + 1)
-    );
-
-    const matchData = {
-      homeTeam: {
-        id: homeTeam.id,
-        manager: homeTeam.manager_name,
-        name: homeTeam.name,
-        logo: homeTeam.logo,
-        formation: "4-3-3", // Example formation, update as needed
-        players: homePlayers.map(formatPlayer),
-      },
-      awayTeam: {
-        id: awayTeam.id,
-        manager: awayTeam.manager_name,
-        name: awayTeam.name,
-        logo: awayTeam.logo,
-        formation: "4-3-3", // Example formation, update as needed
-        players: awayPlayers.map(formatPlayer),
-      },
-      hour: match.hour_start,
-      score: `${match.local_result} - ${match.visiting_result}`,
-      date: formatDate(matchDate),
-      status: match.status,
-      events: matchEvents,
-      observations: match.observations,
-    };
-
-    res.status(200).send({
-      code: 200,
-      message: "Match data successfully obtained",
-      data: matchData,
-    });
+    } else {
+      res.status(404).send("Partido no encontrado");
+    }
   } catch (err) {
-    console.error("Error in getMatchData:", err);
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
   }
 };
 
+// Crear un nuevo partido
 const createMatch = async (req, res) => {
   try {
-    const matches = await getJSONData(matchesPath);
+    const db = getDB();
     const {
       local_team,
       visiting_team,
@@ -322,120 +161,223 @@ const createMatch = async (req, res) => {
     } = req.body;
 
     // Verificar si ya existe un partido entre los mismos equipos en el mismo torneo
-    const existingMatchBetweenTeams = matches.find(
-      (match) =>
-        ((match.local_team === local_team &&
-          match.visiting_team === visiting_team) ||
-          (match.local_team === visiting_team &&
-            match.visiting_team === local_team)) &&
-        match.id_tournament === id_tournament
-    );
+    const existingMatchBetweenTeams = await db.collection("matches").findOne({
+      $or: [
+        { local_team, visiting_team, id_tournament },
+        { local_team: visiting_team, visiting_team: local_team, id_tournament },
+      ],
+    });
 
     if (existingMatchBetweenTeams) {
       return res.status(400).send({
         code: 400,
-        message:
-          "A match between these teams in the same tournament already exists",
+        message: "Ya existe un partido entre estos equipos en el mismo torneo",
       });
     }
 
     // Verificar si ya existe un partido en la misma fecha, hora y cancha
-    const existingMatchSameDateTimePlace = matches.find(
-      (match) =>
-        match.date === date &&
-        match.hour_start === hour_start &&
-        match.place === place
-    );
+    const existingMatchSameDateTimePlace = await db
+      .collection("matches")
+      .findOne({
+        date,
+        hour_start,
+        place,
+      });
 
     if (existingMatchSameDateTimePlace) {
       return res.status(400).send({
         code: 400,
-        message: "A match at the same date, time, and place already exists",
+        message: "Ya existe un partido en la misma fecha, hora y lugar",
       });
     }
 
-    // Verificar si ya existe un partido en la misma fecha y cancha con una diferencia de menos de 2 horas
-    const hourStart = new Date(`${date}T${hour_start}:00Z`).getTime();
-    const twoHoursInMillis = 2 * 60 * 60 * 1000;
-
-    const existingMatchWithinTwoHours = matches.find((match) => {
-      if (match.date === date && match.place === place) {
-        const matchStartTime = new Date(
-          `${match.date}T${match.hour_start}:00Z`
-        ).getTime();
-        return Math.abs(matchStartTime - hourStart) < twoHoursInMillis;
-      }
-      return false;
-    });
-
-    if (existingMatchWithinTwoHours) {
-      return res.status(400).send({
-        code: 400,
-        message:
-          "A match at the same place and date cannot be created within 2 hours of another match",
-      });
-    }
-
+    // Crear nuevo partido
     const newMatch = {
-      id: matches.length + 1,
-      ...req.body,
+      local_team: new ObjectId(local_team),
+      visiting_team: new ObjectId(visiting_team),
+      id_tournament: new ObjectId(id_tournament),
+      date,
+      hour_start,
+      place: new ObjectId(place),
+      status: 1, // Estado inicial: programado
+      local_result: 0,
+      visiting_result: 0,
+      observations: "",
     };
-    matches.push(newMatch);
-    await writeJSONData(matchesPath, matches);
+
+    await db.collection("matches").insertOne(newMatch);
+
     res.status(200).send({
       code: 200,
-      message: "Match successfully created",
+      message: "Partido creado correctamente",
       data: newMatch,
     });
   } catch (err) {
-    console.error("Error in createMatch:", err);
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
   }
 };
 
-// Actualizar un partido por ID
+// Actualizar un partido por _id
 const updateMatch = async (req, res) => {
   try {
-    const matches = await getJSONData(matchesPath);
-    const matchIndex = matches.findIndex(
-      (m) => m.id === parseInt(req.params.id)
-    );
-    if (matchIndex !== -1) {
-      matches[matchIndex] = { id: parseInt(req.params.id), ...req.body };
-      await writeJSONData(matchesPath, matches);
-      res.status(200).send({
-        code: 200,
-        message: "Match successfully updated",
-        data: matches[matchIndex],
-      });
-    } else {
-      res.status(404).send("Match not found");
+    const db = getDB();
+    const { id } = req.params;
+    const updatedMatch = req.body;
+
+    const result = await db
+      .collection("matches")
+      .updateOne({ _id: new ObjectId(id) }, { $set: updatedMatch });
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send("Partido no encontrado");
     }
+
+    res.status(200).send({
+      code: 200,
+      message: "Partido actualizado correctamente",
+    });
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
   }
 };
 
-// Eliminar un partido por ID
+// Eliminar un partido por _id
 const deleteMatch = async (req, res) => {
   try {
-    const matches = await getJSONData(matchesPath);
-    const matchIndex = matches.findIndex(
-      (m) => m.id === parseInt(req.params.id)
-    );
-    if (matchIndex !== -1) {
-      const deletedMatch = matches.splice(matchIndex, 1);
-      await writeJSONData(matchesPath, matches);
-      res.status(200).send({
-        code: 200,
-        message: "Match successfully deleted",
-        data: deletedMatch,
-      });
-    } else {
-      res.status(404).send("Match not found");
+    const db = getDB();
+    const { id } = req.params;
+
+    const result = await db
+      .collection("matches")
+      .deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).send("Partido no encontrado");
     }
+
+    res.status(200).send({
+      code: 200,
+      message: "Partido eliminado correctamente",
+    });
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error en el servidor");
+  }
+};
+
+const getMatchData = async (req, res) => {
+  try {
+    const db = getDB();
+
+    // Obtener los datos de las colecciones necesarias
+    const [match, teams, players, events, matchPlayersNumbers] =
+      await Promise.all([
+        db.collection("matches").findOne({ _id: ObjectId(req.params.id) }),
+        db.collection("teams").find().toArray(),
+        db.collection("players").find().toArray(),
+        db
+          .collection("events")
+          .find({ id_match: ObjectId(req.params.id) })
+          .toArray(),
+        db
+          .collection("match_players_number")
+          .find({ id_match: ObjectId(req.params.id) })
+          .toArray(),
+      ]);
+
+    if (!match) {
+      return res.status(404).send("Partido no encontrado");
+    }
+
+    const homeTeam = teams.find((t) =>
+      t._id.equals(ObjectId(match.local_team))
+    );
+    const awayTeam = teams.find((t) =>
+      t._id.equals(ObjectId(match.visiting_team))
+    );
+
+    if (!homeTeam || !awayTeam) {
+      return res.status(404).send("Equipos no encontrados");
+    }
+
+    // Filtrar los jugadores de los equipos para el torneo correspondiente
+    const homePlayers = players.filter(
+      (p) =>
+        p.id_team === homeTeam._id &&
+        p.tournaments.includes(match.id_tournament)
+    );
+    const awayPlayers = players.filter(
+      (p) =>
+        p.id_team === awayTeam._id &&
+        p.tournaments.includes(match.id_tournament)
+    );
+
+    // Obtener los eventos relacionados con el partido
+    const matchEvents = events.map((e) => {
+      const player = players.find((p) => p._id.equals(ObjectId(e.id_player)));
+      return {
+        id: e._id,
+        player: player ? player.name : "Jugador desconocido",
+        minute: `${e.minute}'`,
+        team: homePlayers.find((p) => p._id.equals(ObjectId(e.id_player)))
+          ? "home"
+          : "away",
+        type: e.id_event_type,
+      };
+    });
+
+    // Crear un mapa de números de jugadores para el partido
+    const matchPlayersNumbersMap = matchPlayersNumbers.reduce((acc, mpn) => {
+      acc[mpn.id_player] = mpn.number;
+      return acc;
+    }, {});
+
+    // Formatear los datos de los jugadores
+    const formatPlayer = (player) => ({
+      id: player._id,
+      name: player.name,
+      position: player.position,
+      number: matchPlayersNumbersMap[player._id] || player.number,
+      status: player.status,
+    });
+
+    // Formatear la fecha del partido
+    const matchDate = new Date(match.date);
+    const formattedDate = matchDate.toLocaleDateString("es-CO");
+
+    // Crear la estructura final de los datos del partido
+    const matchData = {
+      homeTeam: {
+        id: homeTeam._id,
+        manager: homeTeam.manager_name,
+        name: homeTeam.name,
+        logo: homeTeam.logo,
+        formation: "4-3-3", // Ejemplo de formación
+        players: homePlayers.map(formatPlayer),
+      },
+      awayTeam: {
+        id: awayTeam._id,
+        manager: awayTeam.manager_name,
+        name: awayTeam.name,
+        logo: awayTeam.logo,
+        formation: "4-3-3", // Ejemplo de formación
+        players: awayPlayers.map(formatPlayer),
+      },
+      hour: match.hour_start,
+      score: `${match.local_result} - ${match.visiting_result}`,
+      date: formattedDate,
+      status: match.status,
+      events: matchEvents,
+      observations: match.observations,
+    };
+
+    res.status(200).send({
+      code: 200,
+      message: "Datos del partido obtenidos exitosamente",
+      data: matchData,
+    });
+  } catch (err) {
+    console.error("Error en getMatchData:", err);
+    res.status(500).send("Error del servidor");
   }
 };
 
@@ -443,31 +385,39 @@ const updateMatchStatus = async (req, res) => {
   try {
     const { matchId, winnerTeamId } = req.body;
 
-    const [matches, classifications, teams] = await Promise.all([
-      getJSONData(matchesPath),
-      getJSONData(classificationsPath),
-      getJSONData(teamsPath),
-    ]);
+    const db = getDB();
 
-    const matchIndex = matches.findIndex((m) => m.id === parseInt(matchId));
-    if (matchIndex === -1) {
-      return res.status(404).send("Match not found");
+    // Buscar el partido en la colección de partidos
+    const match = await db
+      .collection("matches")
+      .findOne({ _id: ObjectId(matchId) });
+    if (!match) {
+      return res.status(404).send("Partido no encontrado");
     }
 
-    const match = matches[matchIndex];
     const { local_team, visiting_team, id_tournament } = match;
-    const loserTeamId =
-      local_team === parseInt(winnerTeamId) ? visiting_team : local_team;
+    const loserTeamId = local_team.equals(ObjectId(winnerTeamId))
+      ? visiting_team
+      : local_team;
 
-    // Update match status and observations
-    const winnerTeam = teams.find((t) => t.id === parseInt(winnerTeamId));
-    const loserTeam = teams.find((t) => t.id === parseInt(loserTeamId));
+    // Obtener los equipos
+    const winnerTeam = await db
+      .collection("teams")
+      .findOne({ _id: ObjectId(winnerTeamId) });
+    const loserTeam = await db
+      .collection("teams")
+      .findOne({ _id: ObjectId(loserTeamId) });
 
+    if (!winnerTeam || !loserTeam) {
+      return res.status(404).send("Equipos no encontrados");
+    }
+
+    // Actualizar el estado del partido y observaciones
     match.status = 5;
     match.observations = `${winnerTeam.name} gana por walkover contra ${loserTeam.name}`;
 
-    // Update scores
-    if (winnerTeamId === local_team) {
+    // Actualizar el resultado
+    if (winnerTeamId === local_team.toString()) {
       match.local_result = 3;
       match.visiting_result = 0;
     } else {
@@ -475,156 +425,204 @@ const updateMatchStatus = async (req, res) => {
       match.visiting_result = 3;
     }
 
-    // Update classifications
-    const winnerClassIndex = classifications.findIndex(
-      (c) =>
-        c.id_team === parseInt(winnerTeamId) &&
-        c.id_tournament === id_tournament
-    );
-    const loserClassIndex = classifications.findIndex(
-      (c) =>
-        c.id_team === parseInt(loserTeamId) && c.id_tournament === id_tournament
-    );
+    // Actualizar la clasificación
+    const winnerClass = await db.collection("classifications").findOne({
+      id_team: ObjectId(winnerTeamId),
+      id_tournament: id_tournament,
+    });
+    const loserClass = await db.collection("classifications").findOne({
+      id_team: ObjectId(loserTeamId),
+      id_tournament: id_tournament,
+    });
 
-    if (winnerClassIndex !== -1) {
-      const winnerClass = classifications[winnerClassIndex];
-      winnerClass.points += 3;
-      winnerClass.matches_played += 1;
-      winnerClass.matches_won += 1;
-      winnerClass.favor_goals += 3;
-      winnerClass.goal_difference += 3;
+    if (winnerClass) {
+      await db.collection("classifications").updateOne(
+        { _id: winnerClass._id },
+        {
+          $inc: {
+            points: 3,
+            matches_played: 1,
+            matches_won: 1,
+            favor_goals: 3,
+            goal_difference: 3,
+          },
+        }
+      );
     }
 
-    if (loserClassIndex !== -1) {
-      const loserClass = classifications[loserClassIndex];
-      loserClass.matches_played += 1;
-      loserClass.lost_matches += 1;
-      loserClass.goals_against += 3;
-      loserClass.goal_difference -= 3;
+    if (loserClass) {
+      await db.collection("classifications").updateOne(
+        { _id: loserClass._id },
+        {
+          $inc: {
+            matches_played: 1,
+            lost_matches: 1,
+            goals_against: 3,
+            goal_difference: -3,
+          },
+        }
+      );
     }
 
-    await Promise.all([
-      writeJSONData(matchesPath, matches),
-      writeJSONData(classificationsPath, classifications),
-    ]);
+    // Guardar los cambios en el partido
+    await db.collection("matches").updateOne(
+      { _id: ObjectId(matchId) },
+      {
+        $set: {
+          status: match.status,
+          observations: match.observations,
+          local_result: match.local_result,
+          visiting_result: match.visiting_result,
+        },
+      }
+    );
 
     res.status(200).send({
       code: 200,
-      message: "Match and classifications successfully updated",
-      data: { match, classifications },
+      message: "Partido y clasificaciones actualizados exitosamente",
+      data: { match, classifications: [winnerClass, loserClass] },
     });
   } catch (err) {
-    console.error("Error in updateMatchStatus:", err);
-    res.status(500).send("Server error");
+    console.error("Error en updateMatchStatus:", err);
+    res.status(500).send("Error del servidor");
   }
 };
 
 const cancelMatchDueToIncident = async (req, res) => {
   try {
     const { matchId, observation } = req.body;
+    const db = getDB();
 
-    const [matches, classifications, teams] = await Promise.all([
-      getJSONData(matchesPath),
-      getJSONData(classificationsPath),
-      getJSONData(teamsPath),
-    ]);
-
-    const matchIndex = matches.findIndex((m) => m.id === parseInt(matchId));
-    if (matchIndex === -1) {
-      return res.status(404).send("Match not found");
+    // Buscar el partido por su ID en la colección de partidos
+    const match = await db
+      .collection("matches")
+      .findOne({ _id: ObjectId(matchId) });
+    if (!match) {
+      return res.status(404).send("Partido no encontrado");
     }
 
-    const match = matches[matchIndex];
     const { local_team, visiting_team, id_tournament } = match;
 
-    // Update match status and observations
-    const localTeam = teams.find((t) => t.id === local_team);
-    const visitingTeam = teams.find((t) => t.id === visiting_team);
+    // Buscar los equipos
+    const localTeam = await db
+      .collection("teams")
+      .findOne({ _id: ObjectId(local_team) });
+    const visitingTeam = await db
+      .collection("teams")
+      .findOne({ _id: ObjectId(visiting_team) });
 
-    match.status = 5;
-    match.observations =
+    if (!localTeam || !visitingTeam) {
+      return res.status(404).send("Equipos no encontrados");
+    }
+
+    // Actualizar el estado del partido y las observaciones
+    const newObservation =
       observation ||
       `Partido anulado por peleas o problemas entre ${localTeam.name} y ${visitingTeam.name}`;
 
-    // Update classifications
-    const localClassIndex = classifications.findIndex(
-      (c) => c.id_team === local_team && c.id_tournament === id_tournament
-    );
-    const visitingClassIndex = classifications.findIndex(
-      (c) => c.id_team === visiting_team && c.id_tournament === id_tournament
+    const updateMatch = await db.collection("matches").updateOne(
+      { _id: ObjectId(matchId) },
+      {
+        $set: {
+          status: 5,
+          observations: newObservation,
+        },
+      }
     );
 
-    if (localClassIndex !== -1) {
-      const localClass = classifications[localClassIndex];
-      localClass.matches_played += 1;
-      localClass.lost_matches += 1;
-      localClass.goals_against += 3;
-      localClass.goal_difference -= 3;
+    // Actualizar las clasificaciones
+    const localClassification = await db.collection("classifications").findOne({
+      id_team: ObjectId(local_team),
+      id_tournament: ObjectId(id_tournament),
+    });
+    const visitingClassification = await db
+      .collection("classifications")
+      .findOne({
+        id_team: ObjectId(visiting_team),
+        id_tournament: ObjectId(id_tournament),
+      });
+
+    if (localClassification) {
+      await db.collection("classifications").updateOne(
+        { _id: localClassification._id },
+        {
+          $inc: {
+            matches_played: 1,
+            lost_matches: 1,
+            goals_against: 3,
+            goal_difference: -3,
+          },
+        }
+      );
     }
 
-    if (visitingClassIndex !== -1) {
-      const visitingClass = classifications[visitingClassIndex];
-      visitingClass.matches_played += 1;
-      visitingClass.lost_matches += 1;
-      visitingClass.goals_against += 3;
-      visitingClass.goal_difference -= 3;
+    if (visitingClassification) {
+      await db.collection("classifications").updateOne(
+        { _id: visitingClassification._id },
+        {
+          $inc: {
+            matches_played: 1,
+            lost_matches: 1,
+            goals_against: 3,
+            goal_difference: -3,
+          },
+        }
+      );
     }
-
-    await Promise.all([
-      writeJSONData(matchesPath, matches),
-      writeJSONData(classificationsPath, classifications),
-    ]);
 
     res.status(200).send({
       code: 200,
-      message: "Match and classifications successfully updated",
-      data: { match, classifications },
+      message: "Partido y clasificaciones actualizados correctamente",
+      data: { matchId, local_team, visiting_team },
     });
   } catch (err) {
-    console.error("Error in cancelMatchDueToIncident:", err);
-    res.status(500).send("Server error");
+    console.error("Error en cancelMatchDueToIncident:", err);
+    res.status(500).send("Error del servidor");
   }
 };
 
 const createTournamentMatches = async (req, res) => {
   try {
-    const [tournaments, groups, teamsGroups, matches, teams] =
-      await Promise.all([
-        getJSONData(tournamentsPath),
-        getJSONData(groupsPath),
-        getJSONData(teamsGroupsPath),
-        getJSONData(matchesPath),
-        getJSONData(teamsPath),
-      ]);
+    const db = getDB();
 
     const { id_tournament } = req.body;
 
-    const tournament = tournaments.find((t) => t.id === id_tournament);
+    // Buscar el torneo
+    const tournament = await db
+      .collection("tournaments")
+      .findOne({ _id: ObjectId(id_tournament) });
     if (!tournament) {
       return res.status(404).send({
         code: 404,
-        message: "Tournament not found",
+        message: "Torneo no encontrado",
       });
     }
 
-    const tournamentGroups = groups.filter(
-      (g) => g.id_tournament === id_tournament
-    );
+    // Buscar los grupos del torneo
+    const tournamentGroups = await db
+      .collection("groups")
+      .find({ id_tournament: ObjectId(id_tournament) })
+      .toArray();
 
     const newMatches = [];
-    let matchIdCounter = matches.length + 1; // Iniciar el contador de ID desde el último ID existente + 1
 
     for (const group of tournamentGroups) {
-      const groupTeams = teamsGroups
-        .filter((tg) => tg.id_group === group.id)
-        .map((tg) => teams.find((t) => t.id === tg.id_team));
+      // Buscar equipos en el grupo
+      const groupTeamsIds = await db
+        .collection("teams_groups")
+        .find({ id_group: group._id })
+        .toArray();
+      const groupTeams = await db
+        .collection("teams")
+        .find({ _id: { $in: groupTeamsIds.map((tg) => tg.id_team) } })
+        .toArray();
 
       const n = groupTeams.length;
       const isOdd = n % 2 !== 0;
 
-      // Si el número de equipos es impar, agregamos un "equipo fantasma" que representa la jornada de descanso
+      // Si el número de equipos es impar, agregar un "equipo fantasma" que representa la jornada de descanso
       if (isOdd) {
-        groupTeams.push(null); // El equipo "null" indica un descanso
+        groupTeams.push(null);
       }
 
       let currentRound = 1;
@@ -640,14 +638,13 @@ const createTournamentMatches = async (req, res) => {
             const activeTeam = home || away;
             if (activeTeam) {
               roundMatches.push({
-                id: matchIdCounter++, // Incrementar el ID para cada nuevo partido
-                id_tournament: id_tournament,
-                id_group: group.id,
+                id_tournament: ObjectId(id_tournament),
+                id_group: ObjectId(group._id),
                 round: currentRound,
                 date: null, // Fecha no asignada aún
                 hour_start: null, // Hora no asignada aún
                 place: null, // Lugar no asignado aún
-                local_team: activeTeam.id,
+                local_team: activeTeam._id,
                 visiting_team: null, // Indica un descanso
                 local_result: 0,
                 visiting_result: 0,
@@ -657,15 +654,14 @@ const createTournamentMatches = async (req, res) => {
             }
           } else {
             roundMatches.push({
-              id: matchIdCounter++, // Incrementar el ID para cada nuevo partido
-              id_tournament: id_tournament,
-              id_group: group.id,
+              id_tournament: ObjectId(id_tournament),
+              id_group: ObjectId(group._id),
               round: currentRound,
               date: null, // Fecha no asignada aún
               hour_start: null, // Hora no asignada aún
               place: null, // Lugar no asignado aún
-              local_team: home.id,
-              visiting_team: away.id,
+              local_team: home._id,
+              visiting_team: away._id,
               local_result: 0,
               visiting_result: 0,
               status: 1,
@@ -685,36 +681,38 @@ const createTournamentMatches = async (req, res) => {
     }
 
     // Guardar los nuevos partidos en la base de datos
-    matches.push(...newMatches);
-    await writeJSONData(matchesPath, matches);
+    await db.collection("matches").insertMany(newMatches);
 
     res.status(200).send({
       code: 200,
-      message: "Matches successfully created",
+      message: "Partidos creados exitosamente",
       data: newMatches,
     });
   } catch (err) {
-    console.error("Error in createTournamentMatches:", err);
-    res.status(500).send("Server error");
+    console.error("Error en createTournamentMatches:", err);
+    res.status(500).send("Error del servidor");
   }
 };
 
 const generateKnockoutMatches = async (req, res) => {
   try {
-    const [classifications, teams, matches] = await Promise.all([
-      getJSONData(classificationsPath),
-      getJSONData(teamsPath),
-      getJSONData(matchesPath),
-    ]);
-
+    const db = getDB();
     const { id_tournament } = req.body;
 
     // Filtrar clasificaciones por torneo
-    const tournamentClassifications = classifications.filter(
-      (classification) => classification.id_tournament === id_tournament
-    );
+    const tournamentClassifications = await db
+      .collection("classifications")
+      .find({ id_tournament: ObjectId(id_tournament) })
+      .toArray();
 
-    // Agrupar por grupo
+    if (tournamentClassifications.length === 0) {
+      return res.status(404).send({
+        code: 404,
+        message: "No se encontraron clasificaciones para este torneo",
+      });
+    }
+
+    // Agrupar clasificaciones por grupo
     const classificationsByGroup = tournamentClassifications.reduce(
       (acc, classification) => {
         if (!acc[classification.id_group]) {
@@ -881,34 +879,30 @@ const generateKnockoutMatches = async (req, res) => {
     });
 
     // Añadir los partidos generados a la base de datos
-    knockoutMatches.forEach((match, index) => {
-      const newMatch = {
-        id: matches.length + 1 + index,
-        id_tournament,
-        round: match.round,
-        date: null, // Se pueden asignar fechas más tarde
-        hour_start: null, // Se pueden asignar horas más tarde
-        place: null, // Se pueden asignar lugares más tarde
-        local_team: match.local_team,
-        visiting_team: match.visiting_team,
-        local_result: 0,
-        visiting_result: 0,
-        status: 1, // Estado inicial
-        observations: "",
-      };
-      matches.push(newMatch);
-    });
+    const newMatches = knockoutMatches.map((match) => ({
+      id_tournament: ObjectId(id_tournament),
+      round: match.round,
+      date: null, // Se pueden asignar fechas más tarde
+      hour_start: null, // Se pueden asignar horas más tarde
+      place: null, // Se pueden asignar lugares más tarde
+      local_team: match.local_team ? ObjectId(match.local_team) : null,
+      visiting_team: match.visiting_team ? ObjectId(match.visiting_team) : null,
+      local_result: 0,
+      visiting_result: 0,
+      status: 1, // Estado inicial
+      observations: "",
+    }));
 
-    await writeJSONData(matchesPath, matches);
+    await db.collection("matches").insertMany(newMatches);
 
     res.status(200).send({
       code: 200,
-      message: "Knockout matches successfully generated",
+      message: "Partidos de eliminación directa generados con éxito",
       data: knockoutMatches,
     });
   } catch (err) {
-    console.error("Error in generateKnockoutMatches:", err);
-    res.status(500).send("Server error");
+    console.error("Error en generateKnockoutMatches:", err);
+    res.status(500).send("Error del servidor");
   }
 };
 

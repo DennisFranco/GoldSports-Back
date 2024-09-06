@@ -1,110 +1,80 @@
-const fs = require("fs");
-const path = require("path");
-
-const matchPlayersNumberPath = path.join(
-  __dirname,
-  "../../db/match_players_number.json"
-);
-
-const getJSONData = (filePath) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(JSON.parse(data));
-      }
-    });
-  });
-};
-
-const writeJSONData = (filePath, data) => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8", (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
+const { ObjectId } = require("mongodb");
+const { getDB } = require("../../config/db");
 
 // Obtener todos los números de jugadores en partido
 const getAllMatchPlayersNumbers = async (req, res) => {
-  const matchPlayersNumbers = await getJSONData(matchPlayersNumberPath);
-
   try {
+    const db = getDB();
+    const matchPlayersNumbers = await db
+      .collection("match_players_numbers")
+      .find()
+      .toArray();
+
     if (matchPlayersNumbers) {
       res.status(200).send({
         code: 200,
-        message: "Match players numbers successfully obtained",
+        message: "Números de jugadores en partido obtenidos exitosamente",
         data: matchPlayersNumbers,
       });
     } else {
       return res
         .status(500)
-        .send("Error reading match players numbers from file");
+        .send("Error al leer los números de jugadores en partido");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Obtener un número de jugador en partido por ID
 const getMatchPlayerNumberByID = async (req, res) => {
-  const matchPlayersNumbers = await getJSONData(matchPlayersNumberPath);
-
   try {
-    if (matchPlayersNumbers) {
-      const matchPlayerNumber = matchPlayersNumbers.find(
-        (mpn) => mpn.id === parseInt(req.params.id)
-      );
-      if (matchPlayerNumber) {
-        res.status(200).send({
-          code: 200,
-          message: "Match player number successfully obtained",
-          data: matchPlayerNumber,
-        });
-      } else {
-        res.status(404).send("Match player number not found");
-      }
+    const db = getDB();
+    const matchPlayerNumber = await db
+      .collection("match_players_numbers")
+      .findOne({ _id: ObjectId(req.params.id) });
+
+    if (matchPlayerNumber) {
+      res.status(200).send({
+        code: 200,
+        message: "Número de jugador en partido obtenido exitosamente",
+        data: matchPlayerNumber,
+      });
     } else {
-      return res
-        .status(500)
-        .send("Error reading match players numbers from file");
+      res.status(404).send("Número de jugador en partido no encontrado");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Crear nuevos números de jugadores en partido
 const createMatchPlayerNumbers = async (req, res) => {
   try {
-    const matchPlayersNumbers = await getJSONData(matchPlayersNumberPath);
-    const newEntries = Object.entries(req.body).map(
-      ([id_player, number], index) => ({
-        id: matchPlayersNumbers.length + index + 1,
-        id_match: parseInt(req.params.idMatch),
-        id_player: parseInt(id_player),
-        number: number,
-      })
-    );
-    matchPlayersNumbers.push(...newEntries);
-    await writeJSONData(matchPlayersNumberPath, matchPlayersNumbers);
+    const db = getDB();
+    const id_match = ObjectId(req.params.idMatch);
+    const newEntries = Object.entries(req.body).map(([id_player, number]) => ({
+      id_match,
+      id_player: ObjectId(id_player),
+      number: number,
+    }));
+
+    const result = await db
+      .collection("match_players_numbers")
+      .insertMany(newEntries);
+
     res.status(200).send({
       code: 200,
-      message: "Match player numbers successfully created",
-      data: newEntries,
+      message: "Números de jugadores en partido creados exitosamente",
+      data: result.ops,
     });
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 module.exports = {
   getAllMatchPlayersNumbers,
   getMatchPlayerNumberByID,
-  createMatchPlayerNumbers
+  createMatchPlayerNumbers,
 };

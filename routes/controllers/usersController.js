@@ -1,144 +1,116 @@
-const fs = require("fs");
-const path = require("path");
-const jwt = require("jsonwebtoken");
+const { getDB } = require("../../config/db");
+const { ObjectId } = require("mongodb");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
-const usersPath = path.join(__dirname, "../../db/users.json");
-const rolesPath = path.join(__dirname, "../../db/roles.json");
-
-const getJSONData = (filePath) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(JSON.parse(data));
-      }
-    });
-  });
-};
-
-const writeJSONData = (filePath, data) => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8", (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
-
+// Obtener todos los usuarios
 const getAllUsers = async (req, res) => {
   try {
-    const users = await getJSONData(usersPath);
-    const roles = await getJSONData(rolesPath);
+    const db = getDB();
+    const users = await db.collection("users").find().toArray();
+    const roles = await db.collection("roles").find().toArray();
 
     if (users) {
-      const roleFilter = parseInt(req.query.role);
+      const roleFilter = req.query.role;
 
       // Filtrar usuarios por rol si se proporciona un parámetro de consulta de rol
       const filteredUsers = roleFilter
-        ? users.filter((user) => user.role === roleFilter)
+        ? users.filter((user) => String(user.role) === roleFilter)
         : users;
 
       // Combinar los usuarios con sus roles y excluir la contraseña
       const usersWithRoles = filteredUsers.map((user) => {
-        const rol = roles.find((rol) => rol.id === user.role);
+        const rol = roles.find((rol) => rol._id.equals(user.role));
         const { password, ...userWithoutPassword } = user; // Excluir la contraseña
         return {
           ...userWithoutPassword,
-          nameRole: rol ? rol.name : "Role not found",
+          nameRole: rol ? rol.name : "Rol no encontrado",
         };
       });
 
       res.status(200).send({
         code: 200,
-        message: "Users successfully obtained",
+        message: "Usuarios obtenidos exitosamente",
         data: usersWithRoles,
       });
     } else {
-      return res.status(500).send("Error reading users from file");
+      return res.status(500).send("Error al obtener usuarios");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
+// Obtener todos los roles
 const getAllRoles = async (req, res) => {
   try {
-    const roles = await getJSONData(rolesPath);
+    const db = getDB();
+    const roles = await db.collection("roles").find().toArray();
 
     if (roles) {
       res.status(200).send({
         code: 200,
-        message: "Successfully obtained roles",
+        message: "Roles obtenidos exitosamente",
         data: roles,
       });
     } else {
-      return res.status(500).send("Error reading roles from file");
+      return res.status(500).send("Error al obtener roles");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
+// Iniciar sesión
 const loginUser = async (req, res) => {
-  const { email, password } = req.body; // Recibir nombre y contraseña del cuerpo de la solicitud
+  const { email, password } = req.body;
   try {
-    const users = await getJSONData(usersPath);
-
-    // Buscar el usuario por correo electrónico
-    const user = users.find((user) => user.email === email);
+    const db = getDB();
+    const user = await db.collection("users").findOne({ email });
 
     if (!user) {
       return res.status(401).send({
         code: 401,
-        message: "User doesn't exist",
+        message: "El usuario no existe",
       });
     }
 
-    // Verificar la contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).send({
         code: 401,
-        message: "Password incorrect",
+        message: "Contraseña incorrecta",
       });
     }
 
     if (user.status !== 1) {
-      // Usuario inhabilitado
       return res.status(401).send({
         code: 401,
-        message: "Disabled user",
+        message: "Usuario deshabilitado",
       });
     }
 
-    // Crear token JWT
     jwt.sign(
       { user },
       process.env.SECRET_KEY,
       { expiresIn: "8h" },
       (err, token) => {
         if (err) {
-          return res.status(500).send("Error creating token");
+          return res.status(500).send("Error al crear el token");
         }
-        // Usuario encontrado y contraseña correcta
         return res.status(200).send({
           code: 200,
-          message: "Successful login",
+          message: "Inicio de sesión exitoso",
           token,
           user: {
             ...user,
-            password: undefined, // Omitir la contraseña del objeto de usuario
+            password: undefined, // Omitir la contraseña
           },
         });
       }
     );
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
@@ -147,56 +119,43 @@ const createUser = async (req, res) => {
   try {
     const { name, email, password, role, status, phoneNumber } = req.body;
 
-    console.warn(req.body);
-    // Validar campos requeridos
     if (!name || !email || !password || !role) {
       return res.status(400).send({
         code: 400,
-        message: "Name, email, password, and role are required fields",
+        message:
+          "Nombre, correo electrónico, contraseña y rol son obligatorios",
       });
     }
 
-    const [users, roles] = await Promise.all([
-      getJSONData(usersPath),
-      getJSONData(rolesPath),
-    ]);
+    const db = getDB();
+    const roles = await db.collection("roles").find().toArray();
 
-    // Validar rol
-    const validRole = roles.find((r) => r.id === role);
+    const validRole = roles.find((r) => r._id.equals(ObjectId(role)));
     if (!validRole) {
       return res.status(400).send({
         code: 400,
-        message: "Invalid role",
+        message: "Rol inválido",
       });
     }
 
-    // Encriptar contraseña
     const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Crear nuevo usuario
     const newUser = {
-      id: users.length + 1,
       name,
       email,
       password: hashedPassword,
-      role,
-      status: status || 1, // Por defecto activo
+      role: ObjectId(role),
+      status: status || 1, // Activo por defecto
       phoneNumber: phoneNumber || "",
     };
 
-    // Agregar usuario al array
-    users.push(newUser);
-
-    // Escribir datos actualizados en el archivo
-    await writeJSONData(usersPath, users);
+    await db.collection("users").insertOne(newUser);
 
     res.status(200).send({
       code: 200,
-      message: "User successfully created",
+      message: "Usuario creado exitosamente",
     });
   } catch (err) {
-    console.error("Error in createUser:", err);
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
@@ -206,63 +165,53 @@ const editUser = async (req, res) => {
     const { id } = req.params;
     const { name, email, password, role, status, phoneNumber } = req.body;
 
-    const [users, roles] = await Promise.all([
-      getJSONData(usersPath),
-      getJSONData(rolesPath),
-    ]);
+    const db = getDB();
+    const roles = await db.collection("roles").find().toArray();
+    const user = await db.collection("users").findOne({ _id: ObjectId(id) });
 
-    const userIndex = users.findIndex((u) => u.id === parseInt(id));
-    if (userIndex === -1) {
+    if (!user) {
       return res.status(404).send({
         code: 404,
-        message: "User not found",
+        message: "Usuario no encontrado",
       });
     }
 
-    // Validar rol
     if (role) {
-      const validRole = roles.find((r) => r.id === role);
+      const validRole = roles.find((r) => r._id.equals(ObjectId(role)));
       if (!validRole) {
         return res.status(400).send({
           code: 400,
-          message: "Invalid role",
+          message: "Rol inválido",
         });
       }
     }
 
-    // Encriptar contraseña si se proporciona
     let hashedPassword;
     if (password) {
       hashedPassword = await bcrypt.hash(password, 12);
     }
 
-    // Actualizar usuario
     const updatedUser = {
-      ...users[userIndex],
-      name: name || users[userIndex].name,
-      email: email || users[userIndex].email,
-      password: hashedPassword || users[userIndex].password,
-      role: role || users[userIndex].role,
-      status: status !== undefined ? status : users[userIndex].status,
-      phoneNumber: phoneNumber || users[userIndex].phoneNumber,
+      ...user,
+      name: name || user.name,
+      email: email || user.email,
+      password: hashedPassword || user.password,
+      role: role ? ObjectId(role) : user.role,
+      status: status !== undefined ? status : user.status,
+      phoneNumber: phoneNumber || user.phoneNumber,
     };
 
-    users[userIndex] = updatedUser;
-
-    // Escribir datos actualizados en el archivo
-    await writeJSONData(usersPath, users);
-
-    // Eliminar la contraseña antes de devolver la respuesta
-    const { password: _, ...userWithoutPassword } = updatedUser;
+    await db
+      .collection("users")
+      .updateOne({ _id: ObjectId(id) }, { $set: updatedUser });
 
     res.status(200).send({
       code: 200,
-      message: "User successfully updated",
-      data: userWithoutPassword,
+      message: "Usuario actualizado exitosamente",
+      data: { ...updatedUser, password: undefined },
     });
   } catch (err) {
-    console.error("Error in editUser:", err);
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 

@@ -1,138 +1,110 @@
-const fs = require("fs");
-const path = require("path");
-
-const fieldsPath = path.join(__dirname, "../../db/fields.json");
-
-const getJSONData = (filePath) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(JSON.parse(data));
-      }
-    });
-  });
-};
-
-const writeJSONData = (filePath, data) => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8", (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
+const { ObjectId } = require("mongodb");
+const { getDB } = require("../../config/db");
 
 // Obtener todas las canchas
 const getAllFields = async (req, res) => {
-  const fields = await getJSONData(fieldsPath);
-
   try {
+    const db = getDB();
+    const fields = await db.collection("fields").find().toArray();
+
     if (fields) {
       res.status(200).send({
         code: 200,
-        message: "Fields successfully obtained",
+        message: "Canchas obtenidas exitosamente",
         data: fields,
       });
     } else {
-      return res.status(500).send("Error reading users from file");
+      return res
+        .status(500)
+        .send("Error al leer las canchas de la base de datos");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Obtener una cancha por ID
 const getFieldByID = async (req, res) => {
-  const fields = await getJSONData(fieldsPath);
-
   try {
-    if (fields) {
-      const field = fields.find((c) => c.id === parseInt(req.params.id));
-      if (field) {
-        res.status(200).send({
-          code: 200,
-          message: "Fields successfully obtained",
-          data: field,
-        });
-      } else {
-        res.status(404).send("Soccer field not found");
-      }
+    const db = getDB();
+    const field = await db
+      .collection("fields")
+      .findOne({ _id: ObjectId(req.params.id) });
+
+    if (field) {
+      res.status(200).send({
+        code: 200,
+        message: "Cancha obtenida exitosamente",
+        data: field,
+      });
     } else {
-      return res.status(500).send("Error reading users from file");
+      res.status(404).send("Cancha no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Crear una nueva cancha
 const createField = async (req, res) => {
   try {
-    const fields = await getJSONData(fieldsPath);
-    const newField = {
-      id: fields.length + 1,
-      ...req.body,
-    };
-    fields.push(newField);
-    await writeJSONData(fieldsPath, fields);
+    const db = getDB();
+    const newField = { ...req.body };
+
+    const result = await db.collection("fields").insertOne(newField);
     res.status(200).send({
       code: 200,
-      message: "Field successfully created",
-      data: newField,
+      message: "Cancha creada exitosamente",
+      data: result.ops[0],
     });
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Actualizar una cancha por ID
 const updateField = async (req, res) => {
   try {
-    const fields = await getJSONData(fieldsPath);
-    const fieldIndex = fields.findIndex(
-      (c) => c.id === parseInt(req.params.id)
-    );
-    if (fieldIndex !== -1) {
-      fields[fieldIndex] = { id: parseInt(req.params.id), ...req.body };
-      await writeJSONData(fieldsPath, fields);
+    const db = getDB();
+    const fieldId = ObjectId(req.params.id);
+    const updatedField = req.body;
+
+    const result = await db
+      .collection("fields")
+      .updateOne({ _id: fieldId }, { $set: updatedField });
+
+    if (result.matchedCount > 0) {
       res.status(200).send({
         code: 200,
-        message: "Field successfully updated",
-        data: fields[fieldIndex],
+        message: "Cancha actualizada exitosamente",
+        data: updatedField,
       });
     } else {
-      res.status(404).send("Soccer field not found");
+      res.status(404).send("Cancha no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
 // Eliminar una cancha por ID
 const deleteField = async (req, res) => {
   try {
-    const fields = await getJSONData(fieldsPath);
-    const fieldIndex = fields.findIndex(
-      (c) => c.id === parseInt(req.params.id)
-    );
-    if (fieldIndex !== -1) {
-      const deletedField = fields.splice(fieldIndex, 1);
-      await writeJSONData(fieldsPath, fields);
+    const db = getDB();
+    const fieldId = ObjectId(req.params.id);
+
+    const result = await db.collection("fields").deleteOne({ _id: fieldId });
+
+    if (result.deletedCount > 0) {
       res.status(200).send({
         code: 200,
-        message: "Field successfully deleted",
-        data: deletedField,
+        message: "Cancha eliminada exitosamente",
       });
     } else {
-      res.status(404).send("Soccer field not found");
+      res.status(404).send("Cancha no encontrada");
     }
   } catch (err) {
-    res.status(500).send("Server error");
+    res.status(500).send("Error del servidor");
   }
 };
 
