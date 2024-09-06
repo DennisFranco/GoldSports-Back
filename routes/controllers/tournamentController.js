@@ -1,171 +1,118 @@
-const fs = require("fs");
-const path = require("path");
-
-const tournamentsPath = path.join(__dirname, "../../db/tournaments.json");
-const categoriesPath = path.join(__dirname, "../../db/categories.json");
-const matchesPath = path.join(__dirname, "../../db/matches.json");
-const classificationsPath = path.join(
-  __dirname,
-  "../../db/classifications.json"
-);
-const teamsPath = path.join(__dirname, "../../db/teams.json");
-const placesPath = path.join(__dirname, "../../db/fields.json");
-const groupsPath = path.join(__dirname, "../../db/groups.json");
-const teamsGroupsPath = path.join(__dirname, "../../db/teams_groups.json");
-const eventsPath = path.join(__dirname, "../../db/events.json");
-const playersPath = path.join(__dirname, "../../db/players.json");
-
-const getJSONData = (filePath) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(JSON.parse(data));
-      }
-    });
-  });
-};
-
-const writeJSONData = (filePath, data) => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8", (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-};
+const { getDB } = require("../../config/db");
+const { ObjectId } = require("mongodb");
 
 // Obtener todos los torneos con información de la categoría
 const getAllTournaments = async (req, res) => {
   try {
-    const [tournaments, categories] = await Promise.all([
-      getJSONData(tournamentsPath),
-      getJSONData(categoriesPath),
-    ]);
+    const db = getDB();
+    const tournaments = await db.collection("tournaments").find({}).toArray();
+    const categories = await db.collection("categories").find({}).toArray();
 
-    if (tournaments && categories) {
-      const tournamentsWithCategory = tournaments.map((tournament) => {
-        const category = categories.find(
-          (cat) => cat.id === tournament.id_category
-        );
-        return {
-          ...tournament,
-          category: category ? category : null,
-        };
-      });
+    const tournamentsWithCategory = tournaments.map((tournament) => {
+      const category = categories.find(
+        (cat) => cat._id.toString() === tournament.id_category.toString()
+      );
+      return {
+        ...tournament,
+        category: category || null,
+      };
+    });
 
-      res.status(200).send({
-        code: 200,
-        message: "Tournaments successfully obtained",
-        data: tournamentsWithCategory,
-      });
-    } else {
-      return res
-        .status(500)
-        .send("Error reading tournaments or categories from file");
-    }
+    res.status(200).send({
+      code: 200,
+      message: "Torneos obtenidos exitosamente",
+      data: tournamentsWithCategory,
+    });
   } catch (err) {
-    res.status(500).send("Server error");
+    console.error("Error en getAllTournaments:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
+// Obtener información del torneo
 const getTournamentInfo = async (req, res) => {
   try {
-    const [tournaments, categories, matches, events, players] =
-      await Promise.all([
-        getJSONData(tournamentsPath),
-        getJSONData(categoriesPath),
-        getJSONData(matchesPath),
-        getJSONData(eventsPath),
-        getJSONData(playersPath),
-      ]);
+    const db = getDB();
+    const tournamentId = req.params.id;
+    const tournament = await db
+      .collection("tournaments")
+      .findOne({ _id: new ObjectId(tournamentId) });
 
-    const tournament = tournaments.find(
-      (t) => t.id === parseInt(req.params.id)
-    );
     if (!tournament) {
-      return res.status(404).send("Tournament not found");
+      return res.status(404).send("Torneo no encontrado");
     }
 
-    const category = categories.find(
-      (cat) => cat.id === tournament.id_category
-    );
+    const category = await db
+      .collection("categories")
+      .findOne({ _id: new ObjectId(tournament.id_category) });
 
-    // Filtrar los partidos con status 5
-    const tournamentMatches = matches.filter(
-      (match) => match.id_tournament === tournament.id && match.status === 5 && match.observations != 'Descanso'
-    );
+    const matches = await db
+      .collection("matches")
+      .find({
+        id_tournament: new ObjectId(tournamentId),
+        status: 5,
+        observations: { $ne: "Descanso" },
+      })
+      .toArray();
 
-    const totalMatchesPlayed = tournamentMatches.length;
+    const totalMatchesPlayed = matches.length;
+    const events = await db
+      .collection("events")
+      .find({ id_match: { $in: matches.map((m) => m._id) } })
+      .toArray();
+
+    const players = await db.collection("players").find({}).toArray();
+
     let totalGoals = 0;
     let totalYellowCards = 0;
     let totalRedCards = 0;
     const playerStats = {};
 
     events.forEach((event) => {
-      const match = tournamentMatches.find((m) => m.id === event.id_match);
-      if (match) {
-        if (event.id_event_type === 1) {
-          // Gol
-          totalGoals++;
-          if (!playerStats[event.id_player]) {
-            playerStats[event.id_player] = {
-              goals: 0,
-              yellowCards: 0,
-              redCards: 0,
-            };
-          }
-          playerStats[event.id_player].goals++;
-        } else if (event.id_event_type === 2) {
-          // Amarilla
-          totalYellowCards++;
-          if (!playerStats[event.id_player]) {
-            playerStats[event.id_player] = {
-              goals: 0,
-              yellowCards: 0,
-              redCards: 0,
-            };
-          }
-          playerStats[event.id_player].yellowCards++;
-        } else if (event.id_event_type === 3) {
-          // Roja
-          totalRedCards++;
-          if (!playerStats[event.id_player]) {
-            playerStats[event.id_player] = {
-              goals: 0,
-              yellowCards: 0,
-              redCards: 0,
-            };
-          }
-          playerStats[event.id_player].redCards++;
-        }
+      if (event.id_event_type === 1) {
+        totalGoals++;
+        playerStats[event.id_player] = playerStats[event.id_player] || {
+          goals: 0,
+          yellowCards: 0,
+          redCards: 0,
+        };
+        playerStats[event.id_player].goals++;
+      } else if (event.id_event_type === 2) {
+        totalYellowCards++;
+        playerStats[event.id_player] = playerStats[event.id_player] || {
+          goals: 0,
+          yellowCards: 0,
+          redCards: 0,
+        };
+        playerStats[event.id_player].yellowCards++;
+      } else if (event.id_event_type === 3) {
+        totalRedCards++;
+        playerStats[event.id_player] = playerStats[event.id_player] || {
+          goals: 0,
+          yellowCards: 0,
+          redCards: 0,
+        };
+        playerStats[event.id_player].redCards++;
       }
     });
 
-    // Encontrar el máximo goleador, el jugador con más amarillas y el jugador con más rojas
     let topScorer = null;
     let mostYellowCards = null;
     let mostRedCards = null;
 
     Object.keys(playerStats).forEach((playerId) => {
       const stats = playerStats[playerId];
-      const player = players.find((p) => p.id === parseInt(playerId));
-
-      if (topScorer === null || stats.goals > playerStats[topScorer].goals) {
+      if (!topScorer || stats.goals > playerStats[topScorer].goals) {
         topScorer = playerId;
       }
       if (
-        mostYellowCards === null ||
+        !mostYellowCards ||
         stats.yellowCards > playerStats[mostYellowCards].yellowCards
       ) {
         mostYellowCards = playerId;
       }
       if (
-        mostRedCards === null ||
+        !mostRedCards ||
         stats.redCards > playerStats[mostRedCards].redCards
       ) {
         mostRedCards = playerId;
@@ -173,55 +120,57 @@ const getTournamentInfo = async (req, res) => {
     });
 
     const response = {
-      id: tournament.id,
+      id: tournament._id,
       name: tournament.name,
       year: tournament.year,
       id_category: tournament.id_category,
-      category: category ? category : null,
+      category: category || null,
       total_matches_played: totalMatchesPlayed,
       total_goals: totalGoals,
       total_yellow_cards: totalYellowCards,
       total_red_cards: totalRedCards,
       top_scorer: topScorer
-        ? players.find((p) => p.id === parseInt(topScorer)).name
+        ? players.find((p) => p._id.toString() === topScorer.toString()).name
         : null,
       most_yellow_cards: mostYellowCards
-        ? players.find((p) => p.id === parseInt(mostYellowCards)).name
+        ? players.find((p) => p._id.toString() === mostYellowCards.toString())
+            .name
         : null,
       most_red_cards: mostRedCards
-        ? players.find((p) => p.id === parseInt(mostRedCards)).name
+        ? players.find((p) => p._id.toString() === mostRedCards.toString()).name
         : null,
     };
 
     res.status(200).send({
       code: 200,
-      message: "Tournament information successfully obtained",
+      message: "Información del torneo obtenida exitosamente",
       data: response,
     });
   } catch (err) {
-    console.error("Error in getTournamentInfo:", err);
-    res.status(500).send("Server error");
+    console.error("Error en getTournamentInfo:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
+// Obtener partidos del torneo
 const getTournamentMatches = async (req, res) => {
   try {
-    const [matches, teams, places, groups] = await Promise.all([
-      getJSONData(matchesPath),
-      getJSONData(teamsPath),
-      getJSONData(placesPath),
-      getJSONData(groupsPath),
-    ]);
+    const db = getDB();
+    const tournamentId = req.params.id;
+    const matches = await db
+      .collection("matches")
+      .find({ id_tournament: new ObjectId(tournamentId) })
+      .toArray();
 
-    const tournamentMatches = matches.filter(
-      (match) => match.id_tournament === parseInt(req.params.id)
-    );
+    const teams = await db.collection("teams").find({}).toArray();
+    const places = await db.collection("fields").find({}).toArray();
+    const groups = await db.collection("groups").find({}).toArray();
 
     const matchesGroupedByGroup = {};
 
     groups.forEach((group) => {
-      const groupMatches = tournamentMatches.filter(
-        (match) => match.id_group === group.id
+      const groupMatches = matches.filter(
+        (match) => match.id_group.toString() === group._id.toString()
       );
 
       const matchesGroupedByRound = groupMatches.reduce((accRound, match) => {
@@ -232,12 +181,16 @@ const getTournamentMatches = async (req, res) => {
         accRound[roundKey].push({
           ...match,
           local_team:
-            teams.find((team) => team.id === match.local_team)?.name ||
-            "Equipo no asignado",
+            teams.find(
+              (team) => team._id.toString() === match.local_team.toString()
+            )?.name || "Equipo no asignado",
           visiting_team:
-            teams.find((team) => team.id === match.visiting_team)?.name ||
-            "Equipo no asignado",
-          place: places.find((p) => p.id === match.place)?.name || "ND",
+            teams.find(
+              (team) => team._id.toString() === match.visiting_team?.toString()
+            )?.name || "Equipo no asignado",
+          place:
+            places.find((p) => p._id.toString() === match.place?.toString())
+              ?.name || "ND",
           hour_start: match.hour_start || "ND",
           date: match.date || "ND",
         });
@@ -249,36 +202,37 @@ const getTournamentMatches = async (req, res) => {
 
     res.status(200).send({
       code: 200,
-      message: "Tournament matches successfully obtained",
+      message: "Partidos del torneo obtenidos exitosamente",
       data: matchesGroupedByGroup,
     });
   } catch (err) {
-    console.error("Error in getTournamentMatches:", err);
-    res.status(500).send("Server error");
+    console.error("Error en getTournamentMatches:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
+// Obtener clasificación del torneo
 const getTournamentClassification = async (req, res) => {
   try {
-    const [classifications, teams, groups] = await Promise.all([
-      getJSONData(classificationsPath),
-      getJSONData(teamsPath),
-      getJSONData(groupsPath),
-    ]);
+    const db = getDB();
+    const tournamentId = req.params.id;
+    const classifications = await db
+      .collection("classifications")
+      .find({ id_tournament: new ObjectId(tournamentId) })
+      .toArray();
 
-    const tournamentClassifications = classifications.filter(
-      (classification) =>
-        classification.id_tournament === parseInt(req.params.id)
-    );
+    const teams = await db.collection("teams").find({}).toArray();
+    const groups = await db.collection("groups").find({}).toArray();
+
     const formattedClassifications = {};
 
-    tournamentClassifications.forEach((classification) => {
-      const group =
-        groups.find((g) => g.id === classification.id_group)?.name ||
-        "Unknown Group";
-      const team =
-        teams.find((t) => t.id === classification.id_team)?.name ||
-        "Unknown Team";
+    classifications.forEach((classification) => {
+      const group = groups.find(
+        (g) => g._id.toString() === classification.id_group.toString()
+      )?.name;
+      const team = teams.find(
+        (t) => t._id.toString() === classification.id_team.toString()
+      )?.name;
 
       if (!formattedClassifications[group]) {
         formattedClassifications[group] = [];
@@ -308,205 +262,176 @@ const getTournamentClassification = async (req, res) => {
 
     res.status(200).send({
       code: 200,
-      message: "Tournament classification successfully obtained",
+      message: "Clasificación del torneo obtenida exitosamente",
       data: formattedClassifications,
     });
   } catch (err) {
-    console.error("Error in getTournamentClassification:", err);
-    res.status(500).send("Server error");
+    console.error("Error en getTournamentClassification:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
+// Obtener equipos de un torneo por grupo
 const getTournamentTeams = async (req, res) => {
   try {
-    const [groups, teamsGroups, teams] = await Promise.all([
-      getJSONData(groupsPath),
-      getJSONData(teamsGroupsPath),
-      getJSONData(teamsPath),
-    ]);
+    const db = getDB();
+    const { id } = req.params;
+
+    const groups = await db.collection("groups").find({ id_tournament: new ObjectId(id) }).toArray();
+    const teamsGroups = await db.collection("teams_groups").find({ id_group: { $in: groups.map(g => g._id) } }).toArray();
+    const teams = await db.collection("teams").find({}).toArray();
 
     const tournamentTeamsByGroup = groups.reduce((acc, group) => {
-      if (group.id_tournament === parseInt(req.params.id)) {
-        const groupTeams = teamsGroups
-          .filter((tg) => tg.id_group === group.id)
-          .map((tg) => teams.find((t) => t.id === tg.id_team))
-          .filter((team) => team !== undefined);
+      const groupTeams = teamsGroups
+        .filter((tg) => tg.id_group.toString() === group._id.toString())
+        .map((tg) => teams.find((t) => t._id.toString() === tg.id_team.toString()))
+        .filter((team) => team !== undefined);
 
-        acc[group.name] = groupTeams;
-      }
+      acc[group.name] = groupTeams;
       return acc;
     }, {});
 
-    // Incluir todos los grupos del torneo, incluso si no tienen equipos asignados
-    groups
-      .filter((group) => group.id_tournament === parseInt(req.params.id))
-      .forEach((group) => {
-        if (!tournamentTeamsByGroup[group.name]) {
-          tournamentTeamsByGroup[group.name] = [];
-        }
-      });
-
     res.status(200).send({
       code: 200,
-      message: "Tournament teams successfully obtained",
+      message: "Equipos del torneo obtenidos exitosamente",
       data: tournamentTeamsByGroup,
     });
   } catch (err) {
-    console.error("Error in getTournamentTeams:", err);
-    res.status(500).send("Server error");
+    console.error("Error en getTournamentTeams:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Crear un nuevo torneo
 const createTournament = async (req, res) => {
   try {
-    const tournaments = await getJSONData(tournamentsPath);
-    const groups = await getJSONData(groupsPath);
-
+    const db = getDB();
     const { numberGroups, ...tournamentData } = req.body;
 
-    const newTournament = {
-      id: tournaments.length + 1,
+    const newTournament = await db.collection("tournaments").insertOne({
       ...tournamentData,
-    };
-    tournaments.push(newTournament);
+      id_category: new ObjectId(tournamentData.id_category),
+    });
 
     const groupNames = Array.from(
       { length: numberGroups },
       (_, i) => `Grupo ${String.fromCharCode(65 + i)}`
     );
 
-    const newGroups = groupNames.map((name, index) => ({
-      id: groups.length + 1 + index,
-      id_tournament: newTournament.id,
+    const newGroups = groupNames.map((name) => ({
+      id_tournament: newTournament.insertedId,
       name,
     }));
 
-    const updatedGroups = [...groups, ...newGroups];
-
-    await Promise.all([
-      writeJSONData(tournamentsPath, tournaments),
-      writeJSONData(groupsPath, updatedGroups),
-    ]);
+    await db.collection("groups").insertMany(newGroups);
 
     res.status(200).send({
       code: 200,
-      message: "Tournament and groups successfully created",
+      message: "Torneo y grupos creados exitosamente",
       data: {
-        tournament: newTournament,
+        tournament: newTournament.ops[0],
         groups: newGroups,
       },
     });
   } catch (err) {
-    res.status(500).send("Server error");
+    console.error("Error en createTournament:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Actualizar un torneo por ID
 const updateTournament = async (req, res) => {
   try {
-    const tournaments = await getJSONData(tournamentsPath);
-    const tournamentIndex = tournaments.findIndex(
-      (t) => t.id === parseInt(req.params.id)
-    );
-    if (tournamentIndex !== -1) {
-      tournaments[tournamentIndex] = {
-        id: parseInt(req.params.id),
-        ...req.body,
-      };
-      await writeJSONData(tournamentsPath, tournaments);
-      res.status(200).send({
-        code: 200,
-        message: "Tournament successfully updated",
-        data: tournaments[tournamentIndex],
-      });
-    } else {
-      res.status(404).send("Tournament not found");
+    const db = getDB();
+    const { id } = req.params;
+    const updatedTournament = await db
+      .collection("tournaments")
+      .findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: req.body },
+        { returnOriginal: false }
+      );
+
+    if (!updatedTournament.value) {
+      return res.status(404).send("Torneo no encontrado");
     }
+
+    res.status(200).send({
+      code: 200,
+      message: "Torneo actualizado exitosamente",
+      data: updatedTournament.value,
+    });
   } catch (err) {
-    res.status(500).send("Server error");
+    console.error("Error en updateTournament:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
 // Eliminar un torneo por ID
 const deleteTournament = async (req, res) => {
   try {
-    const [tournaments, matches, groups, classifications, teamsGroups] =
-      await Promise.all([
-        getJSONData(tournamentsPath),
-        getJSONData(matchesPath),
-        getJSONData(groupsPath),
-        getJSONData(classificationsPath),
-        getJSONData(teamsGroupsPath),
-      ]);
+    const db = getDB();
+    const { id } = req.params;
 
-    const tournamentId = parseInt(req.params.id);
-
-    // Verificar si hay partidos asignados al torneo
-    const hasMatches = matches.some(
-      (match) => match.id_tournament === tournamentId
-    );
+    const hasMatches = await db
+      .collection("matches")
+      .findOne({ id_tournament: new ObjectId(id) });
     if (hasMatches) {
       return res.status(400).send({
         code: 400,
         message:
-          "Cannot delete tournament: there are matches assigned to this tournament",
+          "No se puede eliminar el torneo: existen partidos asignados a este torneo",
       });
     }
 
-    // Verificar si hay grupos creados para el torneo
-    const hasGroups = groups.some(
-      (group) => group.id_tournament === tournamentId
-    );
+    const hasGroups = await db
+      .collection("groups")
+      .findOne({ id_tournament: new ObjectId(id) });
     if (hasGroups) {
       return res.status(400).send({
         code: 400,
         message:
-          "Cannot delete tournament: there are groups created for this tournament",
+          "No se puede eliminar el torneo: existen grupos creados para este torneo",
       });
     }
 
-    // Verificar si hay clasificaciones relacionadas con el torneo
-    const hasClassifications = classifications.some(
-      (classification) => classification.id_tournament === tournamentId
-    );
+    const hasClassifications = await db
+      .collection("classifications")
+      .findOne({ id_tournament: new ObjectId(id) });
     if (hasClassifications) {
       return res.status(400).send({
         code: 400,
         message:
-          "Cannot delete tournament: there are classifications related to this tournament",
+          "No se puede eliminar el torneo: existen clasificaciones relacionadas con este torneo",
       });
     }
 
-    // Verificar si hay equipos en grupos relacionados con el torneo
-    const hasTeamsInGroups = teamsGroups.some((teamGroup) => {
-      const group = groups.find((g) => g.id === teamGroup.id_group);
-      return group && group.id_tournament === tournamentId;
+    const hasTeamsInGroups = await db.collection("teams_groups").findOne({
+      id_group: { $in: await db.collection("groups").find({ id_tournament: new ObjectId(id) }).map(g => g._id).toArray() },
     });
     if (hasTeamsInGroups) {
       return res.status(400).send({
         code: 400,
         message:
-          "Cannot delete tournament: there are teams assigned to groups in this tournament",
+          "No se puede eliminar el torneo: existen equipos asignados a grupos en este torneo",
       });
     }
 
-    // Eliminar el torneo si no tiene datos relacionados
-    const tournamentIndex = tournaments.findIndex((t) => t.id === tournamentId);
-    if (tournamentIndex !== -1) {
-      const deletedTournament = tournaments.splice(tournamentIndex, 1);
-      await writeJSONData(tournamentsPath, tournaments);
-      res.status(200).send({
-        code: 200,
-        message: "Tournament successfully deleted",
-        data: deletedTournament,
-      });
-    } else {
-      res.status(404).send("Tournament not found");
+    const deletedTournament = await db
+      .collection("tournaments")
+      .deleteOne({ _id: new ObjectId(id) });
+
+    if (!deletedTournament.deletedCount) {
+      return res.status(404).send("Torneo no encontrado");
     }
+
+    res.status(200).send({
+      code: 200,
+      message: "Torneo eliminado exitosamente",
+    });
   } catch (err) {
-    console.error("Error in deleteTournament:", err);
-    res.status(500).send("Server error");
+    console.error("Error en deleteTournament:", err);
+    res.status(500).send("Error en el servidor");
   }
 };
 
