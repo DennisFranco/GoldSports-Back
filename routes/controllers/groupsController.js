@@ -40,10 +40,10 @@ const getGroupByID = async (req, res) => {
     const db = getDB();
     const group = await db
       .collection("groups")
-      .findOne({ _id: ObjectId(req.params.id) });
+      .findOne({ _id:  new ObjectId(req.params.id) });
     const tournament = await db
       .collection("tournaments")
-      .findOne({ _id: ObjectId(group.id_tournament) });
+      .findOne({ _id:  new ObjectId(group.id_tournament) });
 
     if (group) {
       res.status(200).send({
@@ -66,7 +66,7 @@ const getGroupByID = async (req, res) => {
 const getGroupsByTournamentID = async (req, res) => {
   try {
     const db = getDB();
-    const tournamentId = ObjectId(req.params.id);
+    const tournamentId = new ObjectId(req.params.id);
 
     const tournament = await db
       .collection("tournaments")
@@ -94,13 +94,16 @@ const getGroupsByTournamentID = async (req, res) => {
 const createGroup = async (req, res) => {
   try {
     const db = getDB();
-    const newGroup = { ...req.body };
+    const newGroup = {
+      ...req.body,
+      id_tournament: new ObjectId(req.body.id_tournament),
+    };
 
     const result = await db.collection("groups").insertOne(newGroup);
     res.status(200).send({
       code: 200,
       message: "Grupo creado exitosamente",
-      data: result.ops[0],
+      data: result[0],
     });
   } catch (err) {
     res.status(500).send("Error del servidor");
@@ -109,6 +112,7 @@ const createGroup = async (req, res) => {
 
 // Crear un nuevo registro en teams_groups
 const createTeamGroup = async (req, res) => {
+  console.log(req.body);
   try {
     const db = getDB();
     const { id_team, id_group } = req.body;
@@ -123,7 +127,7 @@ const createTeamGroup = async (req, res) => {
 
     const group = await db
       .collection("groups")
-      .findOne({ _id: ObjectId(id_group) });
+      .findOne({ _id:  new ObjectId(id_group) });
     if (!group) {
       return res.status(404).send({
         code: 404,
@@ -132,14 +136,14 @@ const createTeamGroup = async (req, res) => {
     }
 
     const newTeamGroups = id_team.map((teamId) => ({
-      id_team: ObjectId(teamId),
-      id_group: ObjectId(id_group),
+      id_team: new ObjectId(teamId),
+      id_group:  new ObjectId(id_group),
     }));
 
     const newClassifications = id_team.map((teamId) => ({
       id_tournament: group.id_tournament,
-      id_group: ObjectId(id_group),
-      id_team: ObjectId(teamId),
+      id_group:  new ObjectId(id_group),
+      id_team:  new ObjectId(teamId),
       points: 0,
       matches_played: 0,
       matches_won: 0,
@@ -166,7 +170,7 @@ const createTeamGroup = async (req, res) => {
 const updateGroup = async (req, res) => {
   try {
     const db = getDB();
-    const groupId = ObjectId(req.params.id);
+    const groupId = new ObjectId(req.params.id);
     const updatedGroup = req.body;
 
     const result = await db
@@ -191,7 +195,7 @@ const updateGroup = async (req, res) => {
 const deleteGroup = async (req, res) => {
   try {
     const db = getDB();
-    const groupId = ObjectId(req.params.id);
+    const groupId = new ObjectId(req.params.id);
 
     const result = await db.collection("groups").deleteOne({ _id: groupId });
 

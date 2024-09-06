@@ -29,7 +29,7 @@ const getFieldByID = async (req, res) => {
     const db = getDB();
     const field = await db
       .collection("fields")
-      .findOne({ _id: ObjectId(req.params.id) });
+      .findOne({ _id:  new ObjectId(req.params.id) });
 
     if (field) {
       res.status(200).send({
@@ -66,7 +66,7 @@ const createField = async (req, res) => {
 const updateField = async (req, res) => {
   try {
     const db = getDB();
-    const fieldId = ObjectId(req.params.id);
+    const fieldId = new ObjectId(req.params.id);
     const updatedField = req.body;
 
     const result = await db
@@ -91,7 +91,7 @@ const updateField = async (req, res) => {
 const deleteField = async (req, res) => {
   try {
     const db = getDB();
-    const fieldId = ObjectId(req.params.id);
+    const fieldId = new ObjectId(req.params.id);
 
     const result = await db.collection("fields").deleteOne({ _id: fieldId });
 

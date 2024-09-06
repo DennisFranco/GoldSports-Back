@@ -28,8 +28,8 @@ const getPlayerStatsByPlayerAndTournament = async (req, res) => {
   try {
     const db = getDB();
     const stats = await db.collection("player_stats").findOne({
-      id_player: ObjectId(req.params.playerId),
-      id_tournament: ObjectId(req.params.tournamentId),
+      id_player:  new ObjectId(req.params.playerId),
+      id_tournament:  new ObjectId(req.params.tournamentId),
     });
 
     if (stats) {
@@ -71,8 +71,8 @@ const updatePlayerStats = async (req, res) => {
 
     const result = await db.collection("player_stats").findOneAndUpdate(
       {
-        id_player: ObjectId(req.params.playerId),
-        id_tournament: ObjectId(req.params.tournamentId),
+        id_player:  new ObjectId(req.params.playerId),
+        id_tournament:  new ObjectId(req.params.tournamentId),
       },
       { $set: updatedStats },
       { returnOriginal: false }
@@ -97,8 +97,8 @@ const deletePlayerStats = async (req, res) => {
   try {
     const db = getDB();
     const result = await db.collection("player_stats").findOneAndDelete({
-      id_player: ObjectId(req.params.playerId),
-      id_tournament: ObjectId(req.params.tournamentId),
+      id_player:  new ObjectId(req.params.playerId),
+      id_tournament:  new ObjectId(req.params.tournamentId),
     });
 
     if (result.value) {

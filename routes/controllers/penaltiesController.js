@@ -27,7 +27,7 @@ const getPenaltyByID = async (req, res) => {
     const db = getDB();
     const penalty = await db
       .collection("penalties")
-      .findOne({ _id: ObjectId(req.params.id) });
+      .findOne({ _id:  new ObjectId(req.params.id) });
 
     if (penalty) {
       res.status(200).send({
@@ -70,7 +70,7 @@ const updatePenalty = async (req, res) => {
     const result = await db
       .collection("penalties")
       .findOneAndUpdate(
-        { _id: ObjectId(req.params.id) },
+        { _id:  new ObjectId(req.params.id) },
         { $set: updatedPenalty },
         { returnOriginal: false }
       );
@@ -95,7 +95,7 @@ const deletePenalty = async (req, res) => {
     const db = getDB();
     const result = await db
       .collection("penalties")
-      .findOneAndDelete({ _id: ObjectId(req.params.id) });
+      .findOneAndDelete({ _id:  new ObjectId(req.params.id) });
 
     if (result.value) {
       res.status(200).send({

@@ -83,7 +83,7 @@ const loginUser = async (req, res) => {
       });
     }
 
-    if (user.status !== 1) {
+    if (user.status !== "66da868c3167557912b2bc51") {
       return res.status(401).send({
         code: 401,
         message: "Usuario deshabilitado",
@@ -130,7 +130,7 @@ const createUser = async (req, res) => {
     const db = getDB();
     const roles = await db.collection("roles").find().toArray();
 
-    const validRole = roles.find((r) => r._id.equals(ObjectId(role)));
+    const validRole = roles.find((r) => r._id.equals(new ObjectId(role)));
     if (!validRole) {
       return res.status(400).send({
         code: 400,
@@ -143,8 +143,8 @@ const createUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: ObjectId(role),
-      status: status || 1, // Activo por defecto
+      role:  new ObjectId(role),
+      status: status || "66dab91fa45789574acff51e", // Activo por defecto
       phoneNumber: phoneNumber || "",
     };
 
@@ -167,7 +167,7 @@ const editUser = async (req, res) => {
 
     const db = getDB();
     const roles = await db.collection("roles").find().toArray();
-    const user = await db.collection("users").findOne({ _id: ObjectId(id) });
+    const user = await db.collection("users").findOne({ _id:  new ObjectId(id) });
 
     if (!user) {
       return res.status(404).send({
@@ -177,7 +177,7 @@ const editUser = async (req, res) => {
     }
 
     if (role) {
-      const validRole = roles.find((r) => r._id.equals(ObjectId(role)));
+      const validRole = roles.find((r) => r._id.equals(new ObjectId(role)));
       if (!validRole) {
         return res.status(400).send({
           code: 400,
@@ -196,14 +196,14 @@ const editUser = async (req, res) => {
       name: name || user.name,
       email: email || user.email,
       password: hashedPassword || user.password,
-      role: role ? ObjectId(role) : user.role,
+      role: role ? new ObjectId(role) : user.role,
       status: status !== undefined ? status : user.status,
       phoneNumber: phoneNumber || user.phoneNumber,
     };
 
     await db
       .collection("users")
-      .updateOne({ _id: ObjectId(id) }, { $set: updatedUser });
+      .updateOne({ _id:  new ObjectId(id) }, { $set: updatedUser });
 
     res.status(200).send({
       code: 200,

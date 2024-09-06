@@ -32,7 +32,7 @@ const getMatchPlayerNumberByID = async (req, res) => {
     const db = getDB();
     const matchPlayerNumber = await db
       .collection("match_players_numbers")
-      .findOne({ _id: ObjectId(req.params.id) });
+      .findOne({ _id:  new ObjectId(req.params.id) });
 
     if (matchPlayerNumber) {
       res.status(200).send({
@@ -52,10 +52,10 @@ const getMatchPlayerNumberByID = async (req, res) => {
 const createMatchPlayerNumbers = async (req, res) => {
   try {
     const db = getDB();
-    const id_match = ObjectId(req.params.idMatch);
+    const id_match = new ObjectId(req.params.idMatch);
     const newEntries = Object.entries(req.body).map(([id_player, number]) => ({
       id_match,
-      id_player: ObjectId(id_player),
+      id_player:  new ObjectId(id_player),
       number: number,
     }));
 

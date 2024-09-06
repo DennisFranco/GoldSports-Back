@@ -27,7 +27,7 @@ const getEventByID = async (req, res) => {
     const db = getDB();
     const event = await db
       .collection("events")
-      .findOne({ _id: ObjectId(req.params.id) });
+      .findOne({ _id:  new ObjectId(req.params.id) });
 
     if (event) {
       res.status(200).send({
@@ -53,16 +53,16 @@ const createEvent = async (req, res) => {
     const playerEvents = await db
       .collection("events")
       .find({
-        id_player: ObjectId(id_player),
-        id_match: ObjectId(id_match),
+        id_player:  new ObjectId(id_player),
+        id_match:  new ObjectId(id_match),
       })
       .toArray();
 
     const redCardEvent = playerEvents.find(
-      (event) => event.id_event_type === 3
+      (event) => event.id_event_type === "66da8614ad4a8cc7df6ac87b"
     );
     const yellowCardEvents = playerEvents.filter(
-      (event) => event.id_event_type === 2
+      (event) => event.id_event_type === "66da8614ad4a8cc7df6ac87a"
     );
 
     if (redCardEvent || yellowCardEvents.length >= 2) {
@@ -74,9 +74,9 @@ const createEvent = async (req, res) => {
     }
 
     const newEvent = {
-      id_player: ObjectId(id_player),
-      id_match: ObjectId(id_match),
-      id_event_type,
+      id_player:  new ObjectId(id_player),
+      id_match:  new ObjectId(id_match),
+      id_event_type:  new ObjectId(id_event_type),
     };
 
     await db.collection("events").insertOne(newEvent);
@@ -84,12 +84,12 @@ const createEvent = async (req, res) => {
     // Actualizar el resultado del partido
     const match = await db
       .collection("matches")
-      .findOne({ _id: ObjectId(id_match) });
+      .findOne({ _id:  new ObjectId(id_match) });
     const player = await db
       .collection("players")
-      .findOne({ _id: ObjectId(id_player) });
+      .findOne({ _id:  new ObjectId(id_player) });
 
-    if (id_event_type === 1) {
+    if (id_event_type === "66da8614ad4a8cc7df6ac879") {
       const isLocalTeam =
         match.local_team.toString() === player.id_team.toString();
       const updatedScore = isLocalTeam
@@ -98,18 +98,24 @@ const createEvent = async (req, res) => {
 
       await db
         .collection("matches")
-        .updateOne({ _id: ObjectId(id_match) }, { $set: updatedScore });
+        .updateOne({ _id:  new ObjectId(id_match) }, { $set: updatedScore });
     }
 
     // Otros tipos de eventos
-    if (id_event_type === 5) {
+    if (id_event_type === "66da8614ad4a8cc7df6ac87d") {
       await db
         .collection("matches")
-        .updateOne({ _id: ObjectId(id_match) }, { $set: { status: 4 } });
+        .updateOne(
+          { _id:  new ObjectId(id_match) },
+          { $set: { status: "66dab91fa45789574acff524" } }
+        );
     } else if (id_event_type === 7) {
       await db
         .collection("matches")
-        .updateOne({ _id: ObjectId(id_match) }, { $set: { status: 5 } });
+        .updateOne(
+          { _id:  new ObjectId(id_match) },
+          { $set: { status: "66dab91fa45789574acff525" } }
+        );
       // Actualizar clasificaciones
       await updateClassifications(db, match);
     }
@@ -126,18 +132,14 @@ const createEvent = async (req, res) => {
 
 // Actualizar clasificaciones
 const updateClassifications = async (db, match) => {
-  const localTeam = await db
-    .collection("classifications")
-    .findOne({
-      id_team: ObjectId(match.local_team),
-      id_tournament: ObjectId(match.id_tournament),
-    });
-  const visitingTeam = await db
-    .collection("classifications")
-    .findOne({
-      id_team: ObjectId(match.visiting_team),
-      id_tournament: ObjectId(match.id_tournament),
-    });
+  const localTeam = await db.collection("classifications").findOne({
+    id_team:  new ObjectId(match.local_team),
+    id_tournament:  new ObjectId(match.id_tournament),
+  });
+  const visitingTeam = await db.collection("classifications").findOne({
+    id_team:  new ObjectId(match.visiting_team),
+    id_tournament:  new ObjectId(match.id_tournament),
+  });
 
   if (localTeam && visitingTeam) {
     await db
@@ -191,7 +193,7 @@ const updateClassifications = async (db, match) => {
 const updateEvent = async (req, res) => {
   try {
     const db = getDB();
-    const eventId = ObjectId(req.params.id);
+    const eventId = new ObjectId(req.params.id);
     const updatedEvent = req.body;
 
     const result = await db
@@ -216,7 +218,7 @@ const updateEvent = async (req, res) => {
 const deleteEvent = async (req, res) => {
   try {
     const db = getDB();
-    const eventId = ObjectId(req.params.id);
+    const eventId = new ObjectId(req.params.id);
 
     const result = await db.collection("events").deleteOne({ _id: eventId });
 
