@@ -31,6 +31,8 @@ const formatDate = (date) => {
 const getAllMatches = async (req, res) => {
   try {
     const db = getDB();
+    console.log("Conexión a la base de datos establecida.");
+
     const { date } = req.query;
     const queryDate = date ? new Date(date) : new Date();
     const startDate = new Date(queryDate);
@@ -38,10 +40,18 @@ const getAllMatches = async (req, res) => {
     const endDate = new Date(queryDate);
     endDate.setDate(queryDate.getDate() + 7);
 
+    console.log("Fecha de inicio:", startDate);
+    console.log("Fecha de fin:", endDate);
+
     const matches = await db.collection("matches").find().toArray();
     const fields = await db.collection("fields").find().toArray();
     const tournaments = await db.collection("tournaments").find().toArray();
     const teams = await db.collection("teams").find().toArray();
+
+    console.log("Partidos obtenidos:", matches);
+    console.log("Canchas obtenidas:", fields.length);
+    console.log("Torneos obtenidos:", tournaments.length);
+    console.log("Equipos obtenidos:", teams.length);
 
     const formattedMatches = {};
 
@@ -53,6 +63,15 @@ const getAllMatches = async (req, res) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowString = tomorrow.toISOString().split("T")[0];
+
+    console.log(
+      "Hoy:",
+      todayString,
+      "Ayer:",
+      yesterdayString,
+      "Mañana:",
+      tomorrowString
+    );
 
     // Generate keys for each day in the range
     for (
@@ -78,7 +97,17 @@ const getAllMatches = async (req, res) => {
       }
     }
 
+    console.log(
+      "Claves generadas para el rango de fechas:",
+      Object.keys(formattedMatches)
+    );
+
     matches.forEach((match) => {
+      if (!match.date) {
+        console.log(`Partido ${match.id} omitido porque no tiene fecha.`);
+        return; // Omitir este partido si no tiene fecha
+      }
+
       let dateMatch = new Date(match.date);
       const matchDate = getColombianDate(
         dateMatch.setDate(dateMatch.getDate() + 1)
@@ -98,6 +127,8 @@ const getAllMatches = async (req, res) => {
           formattedDate = formatDate(matchDate);
         }
 
+        console.log("Formateando partido:", match.id, "Fecha:", formattedDate);
+
         const tournament =
           tournaments.find((t) => t.id === match.id_tournament)?.name ||
           "Unknown Tournament";
@@ -108,6 +139,19 @@ const getAllMatches = async (req, res) => {
         const visitingTeam =
           teams.find((t) => t.id === match.visiting_team)?.name ||
           "Unknown Team";
+
+        console.log(
+          "Partido:",
+          match.id,
+          "Torneo:",
+          tournament,
+          "Lugar:",
+          place,
+          "Equipo local:",
+          localTeam,
+          "Equipo visitante:",
+          visitingTeam
+        );
 
         let tournamentMatches = formattedMatches[formattedDate].find(
           (t) => t.tournament === tournament
@@ -133,12 +177,15 @@ const getAllMatches = async (req, res) => {
       }
     });
 
+    console.log("Partidos formateados correctamente.");
+
     res.status(200).send({
       code: 200,
       message: "Matches successfully obtained",
       data: formattedMatches,
     });
   } catch (err) {
+    console.error("Error en getAllMatches:", err);
     res.status(500).send("Server error");
   }
 };
@@ -357,11 +404,11 @@ const updateMatch = async (req, res) => {
         { returnOriginal: false }
       );
 
-    if (updatedMatch ) {
+    if (updatedMatch.value) {
       res.status(200).send({
         code: 200,
         message: "Match successfully updated",
-        data: updatedMatch ,
+        data: updatedMatch.value,
       });
     } else {
       res.status(404).send("Match not found");
@@ -379,11 +426,11 @@ const deleteMatch = async (req, res) => {
       .collection("matches")
       .findOneAndDelete({ id: parseInt(req.params.id) });
 
-    if (deletedMatch ) {
+    if (deletedMatch.value) {
       res.status(200).send({
         code: 200,
         message: "Match successfully deleted",
-        data: deletedMatch ,
+        data: deletedMatch.value,
       });
     } else {
       res.status(404).send("Match not found");
@@ -459,15 +506,13 @@ const updateMatchStatus = async (req, res) => {
       loserClass.goal_difference -= 3;
     }
 
-    await db
-      .collection("classifications")
-      .updateMany(
-        {
-          id_team: { $in: [parseInt(winnerTeamId), parseInt(loserTeamId)] },
-          id_tournament,
-        },
-        { $set: { ...winnerClass, ...loserClass } }
-      );
+    await db.collection("classifications").updateMany(
+      {
+        id_team: { $in: [parseInt(winnerTeamId), parseInt(loserTeamId)] },
+        id_tournament,
+      },
+      { $set: { ...winnerClass, ...loserClass } }
+    );
 
     res.status(200).send({
       code: 200,
@@ -477,6 +522,16 @@ const updateMatchStatus = async (req, res) => {
   } catch (err) {
     res.status(500).send("Server error");
   }
+};
+
+module.exports = {
+  getAllMatches,
+  getMatchByID,
+  getMatchData,
+  createMatch,
+  updateMatch,
+  deleteMatch,
+  updateMatchStatus,
 };
 
 const cancelMatchDueToIncident = async (req, res) => {
