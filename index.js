@@ -14,8 +14,8 @@ app.use(json({ limit: "50mb" }));
 
 app.use(cors({
     origin: '*', // Permite todas las conexiones. Ajusta según sea necesario. 
-    methods: 'GET,POST,PUT,DELETE',
-    allowedHeaders: 'Content-Type,Authorization'
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use("/v1/goldSports", router);
 
