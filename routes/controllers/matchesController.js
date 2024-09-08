@@ -401,18 +401,19 @@ const deleteMatch = async (req, res) => {
   }
 };
 
-// Actualizar estado de un partido
 const updateMatchStatus = async (req, res) => {
   try {
     const { matchId, winnerTeamId } = req.body;
 
     const db = getDB();
+    console.log("Fetching match and classifications...");
     const [match, classifications] = await Promise.all([
       db.collection("matches").findOne({ id: parseInt(matchId) }),
       db.collection("classifications").find().toArray(),
     ]);
 
     if (!match) {
+      console.log("Match not found for ID:", matchId);
       return res.status(404).send("Match not found");
     }
 
@@ -426,6 +427,11 @@ const updateMatchStatus = async (req, res) => {
     const loserTeam = await db
       .collection("teams")
       .findOne({ id: parseInt(loserTeamId) });
+
+    if (!winnerTeam || !loserTeam) {
+      console.log("Teams not found for IDs:", winnerTeamId, loserTeamId);
+      return res.status(404).send("Teams not found");
+    }
 
     match.status = 5;
     match.observations = `${winnerTeam.name} gana por walkover contra ${loserTeam.name}`;
@@ -467,13 +473,25 @@ const updateMatchStatus = async (req, res) => {
       loserClass.goal_difference -= 3;
     }
 
-    await db.collection("classifications").updateMany(
-      {
-        id_team: { $in: [parseInt(winnerTeamId), parseInt(loserTeamId)] },
-        id_tournament,
-      },
-      { $set: { ...winnerClass, ...loserClass } }
-    );
+    // Excluir el campo _id de los datos que se actualizan
+    const updatedWinnerClass = { ...winnerClass };
+    const updatedLoserClass = { ...loserClass };
+
+    // Remover el campo _id de ambas clases
+    delete updatedWinnerClass._id;
+    delete updatedLoserClass._id;
+
+    // Actualizar las clasificaciones en la base de datos
+    await Promise.all([
+      db.collection("classifications").updateOne(
+        { id_team: parseInt(winnerTeamId), id_tournament },
+        { $set: updatedWinnerClass }
+      ),
+      db.collection("classifications").updateOne(
+        { id_team: parseInt(loserTeamId), id_tournament },
+        { $set: updatedLoserClass }
+      ),
+    ]);
 
     res.status(200).send({
       code: 200,
@@ -481,6 +499,7 @@ const updateMatchStatus = async (req, res) => {
       data: { match, classifications },
     });
   } catch (err) {
+    console.error("Error in updateMatchStatus:", err);
     res.status(500).send("Server error");
   }
 };
