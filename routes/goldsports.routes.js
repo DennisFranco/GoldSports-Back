@@ -47,36 +47,36 @@ router
   .post("/players", playersController.createPlayer)
   .post(
     "/players/addTournament",
-  
+
     playersController.addTournamentToPlayer
   )
   .post(
     "/removeTournamentFromPlayer",
-  
+
     playersController.removeTournamentFromPlayer
   )
   .put("/players/:id", playersController.updatePlayer)
   .delete("/players/:id", playersController.deletePlayer)
   .delete(
     "/players/team/:id_team",
-  
+
     playersController.deletePlayersByTeamID
   )
   .get("/teams", teamsController.getAllTeams)
   .get(
     "/teamsWithoutGroup/:tournamentId",
-  
+
     teamsController.getTeamsWithoutGroup
   )
   .get("/teams/:id", teamsController.getTeamByID)
   .get(
     "/teams/tournament/:id_tournament",
-  
+
     teamsController.getTeamsByTournament
   )
   .get(
     "/players/tournament/:tournamentId/team/:teamId",
-  
+
     teamsController.getPlayersByTournamentAndTeam
   )
   .post("/teams", teamsController.createTeam)
@@ -84,61 +84,61 @@ router
   .delete("/teams/:id", teamsController.deleteTeam)
   .get("/matches", matchesController.getAllMatches)
   .get("/matches/:id", matchesController.getMatchByID)
-  .get("/download-excel", matchesController.generateXLS)
+  .get("/download-excel/match/:id", matchesController.generateXLS)
   .get("/matchData/:id", matchesController.getMatchData)
   .post("/matches", matchesController.createMatch)
   .post(
     "/matches/generate",
-  
+
     matchesController.createTournamentMatches
   )
   .post(
     "/matches/generateKnockout",
-  
+
     matchesController.generateKnockoutMatches
   )
   .put("/matches/:id", matchesController.updateMatch)
   .delete("/matches/:id", matchesController.deleteMatch)
   .post(
     "/matches/walkover",
-  
+
     matchesController.updateMatchStatus
   )
   .post(
     "/matches/cancel",
-  
+
     matchesController.cancelMatchDueToIncident
   )
   .get("/tournaments", tournamentController.getAllTournaments)
   .get(
     "/tournaments/:id",
-  
+
     tournamentController.getTournamentInfo
   )
   .get(
     "/tournaments/:id/teams",
-  
+
     tournamentController.getTournamentTeams
   )
   .get(
     "/tournaments/:id/matches",
-  
+
     tournamentController.getTournamentMatches
   )
   .get(
     "/tournaments/:id/classification",
-  
+
     tournamentController.getTournamentClassification
   )
   .post("/tournaments", tournamentController.createTournament)
   .put(
     "/tournaments/:id",
-  
+
     tournamentController.updateTournament
   )
   .delete(
     "/tournaments/:id",
-  
+
     tournamentController.deleteTournament
   )
   .get("/categories", categoriesController.getAllCategories)
@@ -147,14 +147,14 @@ router
   .put("/categories/:id", categoriesController.updateCategory)
   .delete(
     "/categories/:id",
-  
+
     categoriesController.deleteCategory
   )
   .get("/groups", groupsController.getAllGroups)
   .get("/groups/:id", groupsController.getGroupByID)
   .get(
     "/groupsByTournament/:id",
-  
+
     groupsController.getGroupsByTournamentID
   )
   .post("/groups", groupsController.createGroup)
@@ -168,29 +168,29 @@ router
   .delete("/events/:id", eventsController.deleteEvent)
   .post(
     "/matchPlayersNumbers/:idMatch",
-  
+
     matchPlayerNumberController.createMatchPlayerNumbers
   )
   .get(
     "/classifications",
-  
+
     classificationsController.getAllClassifications
   )
   .get("/playerStats", playerStatsController.getAllPlayerStats)
   .get(
     "/playerStats/:playerId/tournament/:tournamentId",
-  
+
     playerStatsController.getPlayerStatsByPlayerAndTournament
   )
   .post("/playerStats", playerStatsController.createPlayerStats)
   .put(
     "/playerStats/:playerId/tournament/:tournamentId",
-  
+
     playerStatsController.updatePlayerStats
   )
   .delete(
     "/playerStats/:playerId/tournament/:tournamentId",
-  
+
     playerStatsController.deletePlayerStats
   )
   .get("/penalties", penaltiesController.getAllPenalties)

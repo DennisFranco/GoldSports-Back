@@ -312,11 +312,11 @@ const updatePlayer = async (req, res) => {
         { returnOriginal: false }
       );
 
-    if (updatedPlayer ) {
+    if (updatedPlayer) {
       res.status(200).send({
         code: 200,
         message: "Player successfully updated",
-        data: updatedPlayer ,
+        data: updatedPlayer,
       });
     } else {
       res.status(404).send("Player not found");
@@ -334,11 +334,11 @@ const deletePlayer = async (req, res) => {
       .collection("players")
       .findOneAndDelete({ id: parseInt(req.params.id) });
 
-    if (deletedPlayer ) {
+    if (deletedPlayer) {
       res.status(200).send({
         code: 200,
         message: "Player successfully deleted",
-        data: deletedPlayer ,
+        data: deletedPlayer,
       });
     } else {
       res.status(404).send("Player not found");

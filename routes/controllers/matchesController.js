@@ -1,5 +1,6 @@
 const { getDB } = require("../../config/db");
 const ExcelJS = require("exceljs");
+const path = require("path");
 
 const getColombianDate = (date) => {
   return new Date(
@@ -31,7 +32,6 @@ const formatDate = (date) => {
 const getAllMatches = async (req, res) => {
   try {
     const db = getDB();
-    console.log("Conexión a la base de datos establecida.");
 
     const { date } = req.query;
     const queryDate = date ? new Date(date) : new Date();
@@ -40,18 +40,10 @@ const getAllMatches = async (req, res) => {
     const endDate = new Date(queryDate);
     endDate.setDate(queryDate.getDate() + 7);
 
-    console.log("Fecha de inicio:", startDate);
-    console.log("Fecha de fin:", endDate);
-
     const matches = await db.collection("matches").find().toArray();
     const fields = await db.collection("fields").find().toArray();
     const tournaments = await db.collection("tournaments").find().toArray();
     const teams = await db.collection("teams").find().toArray();
-
-    console.log("Partidos obtenidos:", matches);
-    console.log("Canchas obtenidas:", fields.length);
-    console.log("Torneos obtenidos:", tournaments.length);
-    console.log("Equipos obtenidos:", teams.length);
 
     const formattedMatches = {};
 
@@ -63,15 +55,6 @@ const getAllMatches = async (req, res) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowString = tomorrow.toISOString().split("T")[0];
-
-    console.log(
-      "Hoy:",
-      todayString,
-      "Ayer:",
-      yesterdayString,
-      "Mañana:",
-      tomorrowString
-    );
 
     // Generate keys for each day in the range
     for (
@@ -96,11 +79,6 @@ const getAllMatches = async (req, res) => {
         formattedMatches[formattedDate] = [];
       }
     }
-
-    console.log(
-      "Claves generadas para el rango de fechas:",
-      Object.keys(formattedMatches)
-    );
 
     matches.forEach((match) => {
       if (!match.date) {
@@ -127,8 +105,6 @@ const getAllMatches = async (req, res) => {
           formattedDate = formatDate(matchDate);
         }
 
-        console.log("Formateando partido:", match.id, "Fecha:", formattedDate);
-
         const tournament =
           tournaments.find((t) => t.id === match.id_tournament)?.name ||
           "Unknown Tournament";
@@ -139,19 +115,6 @@ const getAllMatches = async (req, res) => {
         const visitingTeam =
           teams.find((t) => t.id === match.visiting_team)?.name ||
           "Unknown Team";
-
-        console.log(
-          "Partido:",
-          match.id,
-          "Torneo:",
-          tournament,
-          "Lugar:",
-          place,
-          "Equipo local:",
-          localTeam,
-          "Equipo visitante:",
-          visitingTeam
-        );
 
         let tournamentMatches = formattedMatches[formattedDate].find(
           (t) => t.tournament === tournament
@@ -176,8 +139,6 @@ const getAllMatches = async (req, res) => {
         });
       }
     });
-
-    console.log("Partidos formateados correctamente.");
 
     res.status(200).send({
       code: 200,
@@ -222,7 +183,7 @@ const getMatchData = async (req, res) => {
         db.collection("teams").find().toArray(),
         db.collection("players").find().toArray(),
         db.collection("events").find().toArray(),
-        db.collection("match_players_number").find().toArray(),
+        db.collection("match_players_numbers").find().toArray(),
       ]);
 
     if (!match) {
@@ -404,11 +365,11 @@ const updateMatch = async (req, res) => {
         { returnOriginal: false }
       );
 
-    if (updatedMatch.value) {
+    if (updatedMatch) {
       res.status(200).send({
         code: 200,
         message: "Match successfully updated",
-        data: updatedMatch.value,
+        data: updatedMatch,
       });
     } else {
       res.status(404).send("Match not found");
@@ -426,11 +387,11 @@ const deleteMatch = async (req, res) => {
       .collection("matches")
       .findOneAndDelete({ id: parseInt(req.params.id) });
 
-    if (deletedMatch.value) {
+    if (deletedMatch) {
       res.status(200).send({
         code: 200,
         message: "Match successfully deleted",
-        data: deletedMatch.value,
+        data: deletedMatch,
       });
     } else {
       res.status(404).send("Match not found");
@@ -522,16 +483,6 @@ const updateMatchStatus = async (req, res) => {
   } catch (err) {
     res.status(500).send("Server error");
   }
-};
-
-module.exports = {
-  getAllMatches,
-  getMatchByID,
-  getMatchData,
-  createMatch,
-  updateMatch,
-  deleteMatch,
-  updateMatchStatus,
 };
 
 const cancelMatchDueToIncident = async (req, res) => {
@@ -853,6 +804,76 @@ const generateKnockoutMatches = async (req, res) => {
 
 const generateXLS = async (req, res) => {
   try {
+    const db = getDB();
+    const { id } = req.params;
+
+    // Obtener información del partido
+    const match = await db.collection("matches").findOne({ id: parseInt(id) });
+    if (!match) {
+      return res.status(404).send("Match not found");
+    }
+
+    // Obtener información del planillador
+    const user = await db.collection("users").findOne({ id: match.id_planner });
+    if (!user) {
+      return res.status(404).send("Category not found");
+    }
+
+    // Obtener información del equipo local
+    const localTeam = await db
+      .collection("teams")
+      .findOne({ id: parseInt(match.local_team) });
+    if (!localTeam) {
+      return res.status(404).send("local team not found");
+    }
+
+    // Obtener información del equipo visitante
+    const visitingTeam = await db
+      .collection("teams")
+      .findOne({ id: parseInt(match.visiting_team) });
+    if (!visitingTeam) {
+      return res.status(404).send("visiting team not found");
+    }
+
+    // Obtener información del torneo
+    const tournament = await db
+      .collection("tournaments")
+      .findOne({ id: match.id_tournament });
+    if (!tournament) {
+      return res.status(404).send("Tournament not found");
+    }
+
+    // Obtener información de la categoría del torneo
+    const category = await db
+      .collection("categories")
+      .findOne({ id: tournament.id_category });
+    if (!category) {
+      return res.status(404).send("Category not found");
+    }
+
+    // Obtener información de la cancha
+    const place = await db.collection("fields").findOne({ id: match.place });
+    if (!place) {
+      return res.status(404).send("Place not found");
+    }
+
+    // Obtener información de los jugadores y eventos del partido
+    const matchPlayersNumbers = await db
+      .collection("match_players_numbers")
+      .find({ id_match: parseInt(id) })
+      .toArray();
+
+    const playerIds = matchPlayersNumbers.map((mpn) => mpn.id_player);
+    const players = await db
+      .collection("players")
+      .find({ id: { $in: playerIds } })
+      .toArray();
+
+    const events = await db
+      .collection("events")
+      .find({ id_match: parseInt(id) })
+      .toArray();
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("MARCADOR FINAL");
 
@@ -881,7 +902,7 @@ const generateXLS = async (req, res) => {
 
     // Combinar celdas para crear el encabezado de la CATEGORIA O TORNEO
     worksheet.mergeCells("D2:N2");
-    worksheet.getCell("D2").value = "CATEGORIA LIBRE METRO";
+    worksheet.getCell("D2").value = `CATEGORIA ${category.name}`;
     worksheet.getCell("D2").font = { ...headerFont, color: "blue" };
     worksheet.getCell("D2").alignment = centerAlignment;
 
@@ -896,8 +917,9 @@ const generateXLS = async (req, res) => {
       bottom: { style: "thin" },
       right: { style: "thin" },
     };
+    const [year, month, day] = match.date.split("-");
 
-    worksheet.getCell("F4").value = "19";
+    worksheet.getCell("F4").value = day;
     worksheet.getCell("F4").font = bodyFont;
     worksheet.getCell("F4").alignment = centerAlignment;
     worksheet.getCell("F4").border = {
@@ -907,7 +929,7 @@ const generateXLS = async (req, res) => {
       right: { style: "thin" },
     };
 
-    worksheet.getCell("G4").value = "3";
+    worksheet.getCell("G4").value = month;
     worksheet.getCell("G4").font = bodyFont;
     worksheet.getCell("G4").alignment = centerAlignment;
     worksheet.getCell("G4").border = {
@@ -918,7 +940,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("H4:I4");
-    worksheet.getCell("H4").value = "2024";
+    worksheet.getCell("H4").value = year;
     worksheet.getCell("H4").font = bodyFont;
     worksheet.getCell("H4").alignment = centerAlignment;
     worksheet.getCell("H4:I4").border = {
@@ -940,7 +962,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("F5:I5");
-    worksheet.getCell("F5").value = "8:00:00 PM";
+    worksheet.getCell("F5").value = match.hour_start;
     worksheet.getCell("F5").font = bodyFont;
     worksheet.getCell("F5").alignment = centerAlignment;
     worksheet.getCell("F5:I5").border = {
@@ -962,7 +984,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("L4:N4");
-    worksheet.getCell("L4").value = "ULPIANO";
+    worksheet.getCell("L4").value = place.name;
     worksheet.getCell("L4").font = bodyFont;
     worksheet.getCell("L4").alignment = centerAlignment;
     worksheet.getCell("L4:N4").border = {
@@ -983,7 +1005,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("L5:N5");
-    worksheet.getCell("L5").value = "75000";
+    worksheet.getCell("L5").value = "";
     worksheet.getCell("L5").font = { ...bodyFont, color: "red" };
     worksheet.getCell("L5").alignment = centerAlignment;
     worksheet.getCell("L5:N5").border = {
@@ -1005,7 +1027,7 @@ const generateXLS = async (req, res) => {
       right: { style: "thin" },
     };
 
-    worksheet.getCell("D9").value = "3";
+    worksheet.getCell("D9").value = match.local_result;
     worksheet.getCell("D9").font = headerFont;
     worksheet.getCell("D9").alignment = centerAlignment;
     worksheet.getCell("D9").border = {
@@ -1025,7 +1047,7 @@ const generateXLS = async (req, res) => {
       right: { style: "thin" },
     };
 
-    worksheet.getCell("F9").value = "4";
+    worksheet.getCell("F9").value = match.visiting_result;
     worksheet.getCell("F9").font = headerFont;
     worksheet.getCell("F9").alignment = centerAlignment;
     worksheet.getCell("F9").border = {
@@ -1068,7 +1090,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("B12:C12");
-    worksheet.getCell("B12").value = "METALICAS CALIDAD";
+    worksheet.getCell("B12").value = localTeam.name;
     worksheet.getCell("B12").font = bodyFont;
     worksheet.getCell("B12").alignment = centerAlignment;
     worksheet.getCell("B12:C12").border = {
@@ -1079,7 +1101,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("D12:E12");
-    worksheet.getCell("D12").value = "33000";
+    worksheet.getCell("D12").value = "";
     worksheet.getCell("D12").font = bodyFont;
     worksheet.getCell("D12").alignment = centerAlignment;
     worksheet.getCell("D12:E12").border = {
@@ -1089,7 +1111,7 @@ const generateXLS = async (req, res) => {
       right: { style: "thin" },
     };
 
-    worksheet.getCell("F12").value = "";
+    worksheet.getCell("F12").value = match.local_result;
     worksheet.getCell("F12").font = bodyFont;
     worksheet.getCell("F12").alignment = centerAlignment;
     worksheet.getCell("F12").border = {
@@ -1194,7 +1216,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("J12:K12");
-    worksheet.getCell("J12").value = "METALICAS CALIDAD";
+    worksheet.getCell("J12").value = visitingTeam.name;
     worksheet.getCell("J12").font = bodyFont;
     worksheet.getCell("J12").alignment = centerAlignment;
     worksheet.getCell("J12:K12").border = {
@@ -1205,7 +1227,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("L12:M12");
-    worksheet.getCell("L12").value = "33000";
+    worksheet.getCell("L12").value = "";
     worksheet.getCell("L12").font = bodyFont;
     worksheet.getCell("L12").alignment = centerAlignment;
     worksheet.getCell("L12:M12").border = {
@@ -1215,7 +1237,7 @@ const generateXLS = async (req, res) => {
       right: { style: "thin" },
     };
 
-    worksheet.getCell("N12").value = "";
+    worksheet.getCell("N12").value = match.visiting_result;
     worksheet.getCell("N12").font = bodyFont;
     worksheet.getCell("N12").alignment = centerAlignment;
     worksheet.getCell("N12").border = {
@@ -1275,8 +1297,105 @@ const generateXLS = async (req, res) => {
       right: { style: "thin" },
     };
 
+    const localTeamPlayers = matchPlayersNumbers
+      .filter(
+        (mpn) =>
+          players.find((p) => p.id === mpn.id_player).id_team ===
+          match.local_team
+      )
+      .map((mpn) => ({
+        number: mpn.number,
+        ...players.find((p) => p.id === mpn.id_player),
+      }));
+
+    const visitingTeamPlayers = matchPlayersNumbers
+      .filter(
+        (mpn) =>
+          players.find((p) => p.id === mpn.id_player).id_team ===
+          match.visiting_team
+      )
+      .map((mpn) => ({
+        number: mpn.number,
+        ...players.find((p) => p.id === mpn.id_player),
+      }));
+
+    // Empezar a agregar los jugadores desde la fila 14
+    localTeamPlayers.forEach((player, index) => {
+      const playerEvents = events.filter((e) => e.id_player === player.id);
+
+      const goals = playerEvents.filter((e) => e.id_event_type === 1).length;
+      const yellowCards = playerEvents.filter(
+        (e) => e.id_event_type === 2
+      ).length;
+      const redCards = playerEvents.filter((e) => e.id_event_type === 3).length;
+
+      // Agregar una fila con los datos del jugador, comenzando desde la columna B
+      const row = worksheet.addRow([
+        "",
+        index + 1,
+        player.name,
+        player.number,
+        goals > 0 ? goals : "",
+        redCards > 0 ? "R" : yellowCards > 0 ? "A" : "",
+      ]);
+
+      // Establecer alineación para las celdas recién agregadas (comenzando en la columna B)
+      row.getCell(2).alignment = centerAlignment; // Columna B (número)
+      row.getCell(3).alignment = centerAlignment; // Columna C (nombre)
+      row.getCell(4).alignment = centerAlignment; // Columna D
+      row.getCell(5).alignment = centerAlignment; // Columna E
+      row.getCell(6).alignment = centerAlignment; // Columna F
+
+      // Aplicar bordes solo a las celdas desde la columna B en adelante
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        if (colNumber >= 2) {
+          // Aplicar bordes desde la columna B en adelante
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        }
+      });
+    });
+
+    // Agregar jugadores del equipo contrario desde la columna J (fila 14)
+    visitingTeamPlayers.forEach((player, index) => {
+      const playerEvents = events.filter((e) => e.id_player === player.id);
+
+      const goals = playerEvents.filter((e) => e.id_event_type === 1).length;
+      const yellowCards = playerEvents.filter(
+        (e) => e.id_event_type === 2
+      ).length;
+      const redCards = playerEvents.filter((e) => e.id_event_type === 3).length;
+
+      const row = worksheet.getRow(14 + index); // Obtener la fila correspondiente (empezando en la 14)
+
+      // Colocamos los jugadores en las columnas desde J en adelante (columna 10)
+      row.getCell(10).value = index + 1; // Columna J
+      row.getCell(11).value = player.name; // Columna K
+      row.getCell(12).value = player.number; // Columna L
+      row.getCell(13).value = goals > 0 ? goals : ""; // Columna M
+      row.getCell(14).value = redCards > 0 ? "R" : yellowCards > 0 ? "A" : ""; // Columna N
+
+      // Aplicar alineación y bordes en las celdas desde la columna J
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        if (colNumber >= 10) {
+          // Aplicar bordes desde la columna J en adelante
+          cell.alignment = centerAlignment;
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        }
+      });
+    });
+
     worksheet.mergeCells("B40:F40");
-    worksheet.getCell("B40").value = "ARBITRO: ";
+    worksheet.getCell("B40").value = `ARBITRO: ${match.referee}`;
     worksheet.getCell("B40").font = bodyFont;
     worksheet.getCell("B40").alignment = centerAlignment;
     worksheet.getCell("B40:F40").border = {
@@ -1286,47 +1405,8 @@ const generateXLS = async (req, res) => {
       right: { style: "thin" },
     };
 
-    // Datos de ejemplo
-    // const players = [
-    //   { number: 1, name: "ALEJAN VILLA" },
-    //   { number: 2, name: "ARLEX FLORES" },
-    //   { number: 3, name: "BAYRON URBANO" },
-    //   { number: 4, name: "CARLOS RAMOS" },
-    //   { number: 15, name: "JOSE OSPINA" },
-    //   { number: 17, name: "KERYS OSPINA" },
-    //   { number: 19, name: "MANUEL FLOREZ" },
-    // ];
-
-    // // Empezar a agregar los jugadores desde la fila 14
-    // players.forEach((player, index) => {
-    //   const row = worksheet.addRow({
-    //     number: player.number,
-    //     name: player.name,
-    //     num2: "",
-    //     gol: "",
-    //     t: "",
-    //   });
-
-    //   // Establecer alineación para las celdas recién agregadas
-    //   row.getCell("B").alignment = centerAlignment;
-    //   row.getCell("C").alignment = centerAlignment;
-    //   row.getCell("D").alignment = centerAlignment;
-    //   row.getCell("E").alignment = centerAlignment;
-    //   row.getCell("F").alignment = centerAlignment;
-
-    //   // Aplicar bordes a las celdas recién agregadas
-    //   row.eachCell({ includeEmpty: true }, (cell) => {
-    //     cell.border = {
-    //       top: { style: "thin" },
-    //       left: { style: "thin" },
-    //       bottom: { style: "thin" },
-    //       right: { style: "thin" },
-    //     };
-    //   });
-    // });
-
     worksheet.mergeCells("J40:N40");
-    worksheet.getCell("J40").value = "PLANILLADOR: ";
+    worksheet.getCell("J40").value = `PLANILLADOR: ${user.name}`;
     worksheet.getCell("J40").font = bodyFont;
     worksheet.getCell("J40").alignment = centerAlignment;
     worksheet.getCell("J40:N40").border = {
@@ -1337,7 +1417,7 @@ const generateXLS = async (req, res) => {
     };
 
     worksheet.mergeCells("B42:N42");
-    worksheet.getCell("B42").value = "OBSERVACIONES:  ";
+    worksheet.getCell("B42").value = `OBSERVACIONES:  ${match.observations}`;
     worksheet.getCell("B42").font = bodyFont;
     worksheet.getCell("B42").alignment = leftAlignment;
     worksheet.getCell("B42:N42").border = {
@@ -1373,7 +1453,7 @@ const generateXLS = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
-    console.error("Error in generateKnockoutMatches:", err);
+    console.error("Error in generateXLS:", err);
     res.status(500).send("Server error");
   }
 };

@@ -47,15 +47,22 @@ const getMatchPlayerNumberByID = async (req, res) => {
   }
 };
 
-// Crear nuevos números de jugadores en partido
 const createMatchPlayerNumbers = async (req, res) => {
   try {
     const db = getDB();
+
+    console.log("Request received with body:", req.body);
+    console.log("Match ID from params:", req.params.idMatch);
+
+    // Obtener todos los match_players_numbers
     const matchPlayersNumbers = await db
       .collection("match_players_numbers")
       .find()
       .toArray();
 
+    console.log("Existing match player numbers:", matchPlayersNumbers.length);
+
+    // Crear nuevas entradas para los jugadores
     const newEntries = Object.entries(req.body).map(
       ([id_player, number], index) => ({
         id: matchPlayersNumbers.length + index + 1,
@@ -65,7 +72,12 @@ const createMatchPlayerNumbers = async (req, res) => {
       })
     );
 
+    console.log("New entries to insert:", newEntries);
+
+    // Insertar las nuevas entradas en la base de datos
     await db.collection("match_players_numbers").insertMany(newEntries);
+
+    console.log("Successfully inserted new match player numbers");
 
     res.status(200).send({
       code: 200,
@@ -73,6 +85,7 @@ const createMatchPlayerNumbers = async (req, res) => {
       data: newEntries,
     });
   } catch (err) {
+    console.error("Error in createMatchPlayerNumbers:", err);
     res.status(500).send("Server error");
   }
 };
