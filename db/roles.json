@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "name": "Administrador",
+    "description": "Tiene acceso completo al sistema para gestionar usuarios, roles, y configuraciones generales del sistema."
+  },
+  {
+    "id": 2,
+    "name": "Delegado",
+    "description": "Responsable de atender los partidos, tomar notas, y asegurar una experiencia de calidad."
+  }
+]
