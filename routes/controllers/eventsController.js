@@ -1,4 +1,12 @@
 const { getDB } = require("../../config/db");
+const twilio = require("twilio");
+
+// Cargar variables de entorno
+require("dotenv").config();
+
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = twilio(accountSid, authToken);
 
 // Obtener todos los eventos
 const getAllEvents = async (req, res) => {
@@ -332,10 +340,105 @@ const deleteEvent = async (req, res) => {
   }
 };
 
+const sendMessage = async (req, res) => {
+  const { to } = req.body;
+
+  try {
+    const db = getDB();
+    const [match, teams, players, events, matchPlayersNumbers, penalties] =
+      await Promise.all([
+        db.collection("matches").findOne({ id: parseInt(req.params.id) }),
+        db.collection("teams").find().toArray(),
+        db.collection("players").find().toArray(),
+        db.collection("events").find().toArray(),
+        db.collection("match_players_numbers").find().toArray(),
+        db.collection("penalties").find().toArray(),
+      ]);
+
+    if (!match) {
+      return res.status(404).send("Partido no encontrado");
+    }
+
+    const homeTeam = teams.find((t) => t.id === match.local_team);
+    const awayTeam = teams.find((t) => t.id === match.visiting_team);
+
+    if (!homeTeam || !awayTeam) {
+      return res.status(404).send("Equipos no encontrados");
+    }
+
+    // Filtrar eventos de goles por equipo
+    const homeTeamGoals = events.filter(
+      (e) => e.id_event_type === "goal" && homeTeam.id === e.id_team
+    );
+    const awayTeamGoals = events.filter(
+      (e) => e.id_event_type === "goal" && awayTeam.id === e.id_team
+    );
+
+    // Filtrar eventos de tarjetas amarillas y rojas
+    const yellowCards = events.filter((e) => e.id_event_type === "yellow_card");
+    const redCards = events.filter((e) => e.id_event_type === "red_card");
+
+    // Obtener nombres de los goleadores
+    const homeScorers = homeTeamGoals
+      .map((goal) => {
+        const player = players.find((p) => p.id === goal.id_player);
+        return player ? player.name : "Jugador desconocido";
+      })
+      .join(", ");
+
+    const awayScorers = awayTeamGoals
+      .map((goal) => {
+        const player = players.find((p) => p.id === goal.id_player);
+        return player ? player.name : "Jugador desconocido";
+      })
+      .join(", ");
+
+    // Obtener nombres de jugadores con tarjetas
+    const yellowCardPlayers =
+      yellowCards
+        .map((card) => {
+          const player = players.find((p) => p.id === card.id_player);
+          return player ? player.name : "Jugador desconocido";
+        })
+        .join(", ") || "Ninguna";
+
+    const redCardPlayers =
+      redCards
+        .map((card) => {
+          const player = players.find((p) => p.id === card.id_player);
+          return player ? player.name : "Jugador desconocido";
+        })
+        .join(", ") || "Ninguna";
+
+    // Crear el mensaje con el formato
+    const message =
+      `${homeTeam.name} ${match.local_result} - ${awayTeam.name} ${match.visiting_result}\n` +
+      `Eventos:\nGoles ${homeTeam.name}: ${homeScorers}\n` +
+      `Goles ${awayTeam.name}: ${awayScorers}\n` +
+      `Tarjetas amarillas: ${yellowCardPlayers}\n` +
+      `Tarjetas rojas: ${redCardPlayers}`;
+
+    // Enviar el mensaje usando Twilio
+    client.messages
+      .create({
+        body: message,
+        from: "whatsapp:+14155238886",
+        to: `whatsapp:${to}`,
+      })
+      .then((msg) => res.status(200).json({ success: true, sid: msg.sid }))
+      .catch((err) =>
+        res.status(500).json({ success: false, error: err.message })
+      );
+  } catch (err) {
+    res.status(500).send("Error en el servidor");
+  }
+};
+
 module.exports = {
   getAllEvents,
   getEventByID,
   createEvent,
   updateEvent,
   deleteEvent,
+  sendMessage,
 };
