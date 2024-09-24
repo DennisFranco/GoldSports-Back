@@ -1,25 +1,25 @@
 const express = require("express");
-const fs = require("fs");
+const { urlencoded, json } = require("express");
 const router = require("./routes/goldsports.routes");
-const helmet = require("helmet");
-var compression = require("compression");
 const cors = require("cors");
 require("dotenv").config();
 const { connectDB } = require("./config/db");
-const https = require("https");
+const http = require("http");
 
-// Opciones para el servidor https, para usar los certificados para SSL/TLS
-const httpsServerOptions = {
-  key: fs.readFileSync(process.env.KEY_PATH),
-  cert: fs.readFileSync(process.env.CERT_PATH),
-};
+const app = express();
 
 connectDB();
 
-const app = express();
-app.use(helmet({ contentSecurityPolicy: false })); // Ayuda a proteger aplicaciones Express
-app.use(compression());
-app.use(cors());
+app.use(urlencoded({ limit: "50mb", extended: true }));
+app.use(json({ limit: "50mb" }));
+
+app.use(
+  cors({
+    origin: "*", // Permite todas las conexiones. Ajusta según sea necesario.
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // Ruta raíz
 app.get("/", (req, res) => {
@@ -28,12 +28,14 @@ app.get("/", (req, res) => {
 
 app.use("/v1/goldSports", router);
 
-// Servidor HTTPS
-const serverHttps = https.createServer(httpsServerOptions, app);
-serverHttps.listen(process.env.HTTPS_PORT, process.env.IP);
+const PORT = process.env.PORT || 4000;
+const HOST = process.env.IP || "0.0.0.0";
 
-serverHttps.on("listening", () =>
-  console.info(
-    `Notes App running at http://${process.env.IP}:${process.env.HTTPS_PORT}`
-  )
+// Crear el servidor HTTP usando el módulo http
+const server = http.createServer(app);
+
+// Iniciar el servidor y escuchar en el puerto especificado
+server.listen(PORT, HOST);
+server.on("listening", () =>
+  console.info(`Notes App running at http://${HOST}:${PORT}`)
 );

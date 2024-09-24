@@ -35,7 +35,7 @@ router
   .post("/login", usersController.loginUser)
   .get("/users", verificarToken, usersController.getAllUsers)
   .get("/roles", verificarToken, usersController.getAllRoles)
-  .post("/users", verificarToken, usersController.createUser)
+  .post("/users",  usersController.createUser)
   .put("/users/:id", verificarToken, usersController.editUser)
   .get("/fields", verificarToken, fieldsController.getAllFields)
   .get("/fields/:id", verificarToken, fieldsController.getFieldByID)
