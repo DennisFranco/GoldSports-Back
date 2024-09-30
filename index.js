@@ -17,9 +17,15 @@ const httpsServerOptions = {
 connectDB();
 
 const app = express();
-app.use(helmet({ contentSecurityPolicy: false })); // Ayuda a proteger aplicaciones Express
-app.use(compression());
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.use(express.json());
 
 // Ruta raíz
 app.get("/", (req, res) => {
