@@ -139,6 +139,7 @@ const getTournamentInfo = async (req, res) => {
       year: tournament.year,
       id_category: tournament.id_category,
       category: category ? category : null,
+      classification: tournament.classification,
       total_matches_played: totalMatchesPlayed,
       total_goals: totalGoals,
       total_yellow_cards: totalYellowCards,
@@ -186,10 +187,11 @@ const getTournamentInfo = async (req, res) => {
   }
 };
 
-// Obtener partidos del torneo
 const getTournamentMatches = async (req, res) => {
   try {
     const db = getDB();
+
+    // Consultar todas las colecciones necesarias en paralelo
     const [matches, teams, places, groups] = await Promise.all([
       db.collection("matches").find().toArray(),
       db.collection("teams").find().toArray(),
@@ -197,12 +199,14 @@ const getTournamentMatches = async (req, res) => {
       db.collection("groups").find().toArray(),
     ]);
 
+    // Filtrar los partidos del torneo solicitado
     const tournamentMatches = matches.filter(
       (match) => match.id_tournament === parseInt(req.params.id)
     );
 
     const matchesGroupedByGroup = {};
 
+    // Agrupar partidos por grupo
     groups.forEach((group) => {
       const groupMatches = tournamentMatches.filter(
         (match) => match.id_group === group.id
@@ -231,15 +235,55 @@ const getTournamentMatches = async (req, res) => {
       matchesGroupedByGroup[group.name] = matchesGroupedByRound;
     });
 
+    // Agrupar partidos por instancias finales
+    const finalStages = [
+      { key: "FINAL", type: "Final" },
+      { key: "SEMIFINAL", type: "Semifinal" },
+      { key: "CUARTOS DE FINAL", type: "Cuartos de Final" },
+      { key: "OCTAVOS DE FINAL", type: "Octavos de Final" },
+      { key: "DIECISÉISAVOS DE FINAL", type: "Dieciseisavos de Final" },
+    ];
+
+    finalStages.forEach(({ key, type }) => {
+      const stageMatches = tournamentMatches.filter((match) => match.type === type);
+
+      if (stageMatches.length > 0) {
+        // Agrupar partidos con claves como PARTIDO 1, PARTIDO 2, etc.
+        const matchesByKey = stageMatches.reduce((acc, match, index) => {
+          const matchKey = stageMatches.length === 1 ? "PARTIDO UNICO" : `PARTIDO ${index + 1}`;
+          if (!acc[matchKey]) {
+            acc[matchKey] = [];
+          }
+          acc[matchKey].push({
+            ...match,
+            local_team:
+              teams.find((team) => team.id === match.local_team)?.name ||
+              "Equipo no asignado",
+            visiting_team:
+              teams.find((team) => team.id === match.visiting_team)?.name ||
+              "Equipo no asignado",
+            place: places.find((p) => p.id === match.place)?.name || "ND",
+            hour_start: match.hour_start || "ND",
+            date: match.date || "ND",
+          });
+          return acc;
+        }, {});
+
+        matchesGroupedByGroup[key] = matchesByKey;
+      }
+    });
+
     res.status(200).send({
       code: 200,
       message: "Partidos del torneo obtenidos con éxito",
       data: matchesGroupedByGroup,
     });
   } catch (err) {
+    console.error("Error al obtener los partidos del torneo:", err);
     res.status(500).send("Error del servidor");
   }
 };
+
 
 // Obtener clasificación del torneo
 const getTournamentClassification = async (req, res) => {
@@ -270,6 +314,8 @@ const getTournamentClassification = async (req, res) => {
       }
 
       formattedClassifications[group].push({
+        id_team: classification.id_team,
+        id_group: classification.id_group,
         team,
         points: classification.points,
         matches_played: classification.matches_played,

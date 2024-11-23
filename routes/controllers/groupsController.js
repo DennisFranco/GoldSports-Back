@@ -186,6 +186,7 @@ const createTeamGroup = async (req, res) => {
         favor_goals: 0,
         goals_against: 0,
         goal_difference: 0,
+        classified: 0,
       };
       newClassifications.push(newClassification);
     });

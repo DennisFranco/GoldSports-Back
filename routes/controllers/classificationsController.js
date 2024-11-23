@@ -92,6 +92,51 @@ const getAllClassifications = async (req, res) => {
   }
 };
 
+const createClassified = async (req, res) => {
+  try {
+    const db = getDB();
+    const { id_tournament, teams } = req.body;
+
+    // Validar que los datos requeridos estén presentes
+    if (!id_tournament || !Array.isArray(teams) || teams.length === 0) {
+      return res.status(400).send({
+        code: 400,
+        message: "Faltan datos requeridos: id_tournament o teams.",
+      });
+    }
+
+    // Iterar sobre los equipos y actualizar el campo classified
+    const bulkOperations = teams.map((team) => ({
+      updateOne: {
+        filter: {
+          id_tournament,
+          id_group: team.idGroup,
+          id_team: team.idTeam,
+        },
+        update: { $set: { classified: 1 } },
+      },
+    }));
+
+    const result = await db
+      .collection("classifications")
+      .bulkWrite(bulkOperations);
+
+    res.status(200).send({
+      code: 200,
+      message: "Clasificaciones actualizadas con éxito.",
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error actualizando clasificaciones:", error);
+    res.status(500).send({
+      code: 500,
+      message: "Error interno del servidor.",
+    });
+  }
+};
+
 module.exports = {
   getAllClassifications,
+  createClassified,
 };

@@ -101,11 +101,13 @@ const getPlayerByID = async (req, res) => {
   }
 };
 
-// Agregar jugadores a un torneo
 const addTournamentToPlayer = async (req, res) => {
   try {
     const db = getDB();
     const { playerId: playerIds, tournamentId, teamId } = req.body;
+
+    // Mostrar los datos recibidos
+    console.log("Datos recibidos:", { playerIds, tournamentId, teamId });
 
     // Validación inicial: verificar cuántos jugadores ya están inscritos en el torneo para este equipo
     const playersInTeam = await db
@@ -116,10 +118,16 @@ const addTournamentToPlayer = async (req, res) => {
       })
       .toArray();
 
+    // Mostrar los jugadores ya inscritos en el equipo para el torneo
+    console.log("Jugadores en el equipo inscritos en el torneo:", playersInTeam);
+
     const totalPlayersToEnroll = playersInTeam.length + playerIds.length;
 
-    // Si la suma de los jugadores inscritos y los que se intentan inscribir excede 25, no se permite la inscripción
+    // Mostrar la cantidad total de jugadores que se intenta inscribir
+    console.log("Total de jugadores a inscribir:", totalPlayersToEnroll);
+
     if (totalPlayersToEnroll > 25) {
+      console.log("Supera el límite de 25 jugadores");
       return res.status(400).send({
         code: 400,
         message: `El equipo ya tiene ${playersInTeam.length} jugadores inscritos. No se pueden inscribir más de 25 jugadores en el torneo.`,
@@ -135,8 +143,14 @@ const addTournamentToPlayer = async (req, res) => {
       db.collection("tournaments").find().toArray(),
     ]);
 
+    // Mostrar jugadores, categorías y torneos obtenidos
+    console.log("Jugadores encontrados:", players);
+    console.log("Categorías encontradas:", categories);
+    console.log("Torneos encontrados:", tournaments);
+
     const tournament = tournaments.find((t) => t.id === parseInt(tournamentId));
     if (!tournament) {
+      console.log("Torneo no encontrado");
       return res.status(404).send("Torneo no encontrado");
     }
 
@@ -144,14 +158,20 @@ const addTournamentToPlayer = async (req, res) => {
       (cat) => cat.id === tournament.id_category
     );
     if (!category) {
+      console.log("Categoría no encontrada para el torneo");
       return res.status(400).send("Categoría no encontrada para el torneo");
     }
 
     const specialRules = category.special_rules;
+    console.log("Reglas especiales:", specialRules);
+
     let jugadoresNoAgregados = [];
 
     for (const playerId of playerIds) {
       const player = players.find((p) => p.id === parseInt(playerId));
+      
+      // Mostrar jugador actual
+      console.log(`Procesando jugador con ID ${playerId}:`, player);
 
       if (!player) {
         jugadoresNoAgregados.push(`Jugador con ID ${playerId} no encontrado`);
@@ -175,14 +195,22 @@ const addTournamentToPlayer = async (req, res) => {
         }
       } else {
         if (specialRules.minimum_age && playerAge < specialRules.minimum_age) {
-          const exception = specialRules.exception_age_ranges
-            ? specialRules.exception_age_ranges.some((range) => {
+          let exception = false;
+          if (specialRules.exception_age_ranges) {
+            if (Array.isArray(specialRules.exception_age_ranges)) {
+              exception = specialRules.exception_age_ranges.some((range) => {
                 return (
                   playerAge >= range.minimum_age &&
                   playerAge <= range.maximum_age
                 );
-              })
-            : false;
+              });
+            } else {
+              const range = specialRules.exception_age_ranges;
+              exception =
+                playerAge >= range.minimum_age &&
+                playerAge <= range.maximum_age;
+            }
+          }
 
           if (!exception) {
             isValid = false;
@@ -196,13 +224,24 @@ const addTournamentToPlayer = async (req, res) => {
         }
 
         if (specialRules.exception_age_ranges && isValid) {
-          const exception = specialRules.exception_age_ranges.some((range) => {
-            return (
-              playerAge >= range.minimum_age && playerAge <= range.maximum_age
-            );
-          });
+          let isInExceptionRange = false;
 
-          if (exception) {
+          if (Array.isArray(specialRules.exception_age_ranges)) {
+            isInExceptionRange = specialRules.exception_age_ranges.some(
+              (range) => {
+                return (
+                  playerAge >= range.minimum_age &&
+                  playerAge <= range.maximum_age
+                );
+              }
+            );
+          } else {
+            const range = specialRules.exception_age_ranges;
+            isInExceptionRange =
+              playerAge >= range.minimum_age && playerAge <= range.maximum_age;
+          }
+
+          if (isInExceptionRange) {
             const playersInTournament = players.filter((p) =>
               p.tournaments.includes(parseInt(tournamentId))
             );
@@ -210,9 +249,16 @@ const addTournamentToPlayer = async (req, res) => {
             const exceptionPlayersCount = playersInTournament.filter((p) => {
               const age =
                 new Date().getFullYear() - new Date(p.birth_date).getFullYear();
-              return specialRules.exception_age_ranges.some((range) => {
-                return age >= range.minimum_age && age <= range.maximum_age;
-              });
+              if (Array.isArray(specialRules.exception_age_ranges)) {
+                return specialRules.exception_age_ranges.some((range) => {
+                  return age >= range.minimum_age && age <= range.maximum_age;
+                });
+              } else {
+                const range = specialRules.exception_age_ranges;
+                return (
+                  age >= range.minimum_age && age <= range.maximum_age
+                );
+              }
             }).length;
 
             if (exceptionPlayersCount >= specialRules.maximum_exceptions) {
@@ -222,6 +268,9 @@ const addTournamentToPlayer = async (req, res) => {
           }
         }
       }
+
+      // Mostrar si el jugador es válido o no para el torneo
+      console.log(`Jugador ${player.name} válido para torneo:`, isValid);
 
       if (!isValid) {
         jugadoresNoAgregados.push(message);
@@ -259,6 +308,7 @@ const addTournamentToPlayer = async (req, res) => {
           };
 
           await db.collection("player_stats").insertOne(newPlayerStat);
+          console.log(`Estadísticas creadas para el jugador ${player.name}`);
         }
 
         await db
@@ -267,15 +317,18 @@ const addTournamentToPlayer = async (req, res) => {
             { id: parseInt(playerId) },
             { $set: { tournaments: player.tournaments } }
           );
+        console.log(`Jugador ${player.name} agregado al torneo`);
       } else {
         jugadoresNoAgregados.push(
           `El jugador ${player.name} ya está inscrito en el torneo`
         );
       }
 
-      // Actualizamos el número de jugadores inscritos en el equipo
       playersInTeam.push(player);
     }
+
+    // Mostrar si hubo jugadores que no pudieron ser agregados
+    console.log("Jugadores no agregados:", jugadoresNoAgregados);
 
     if (jugadoresNoAgregados.length > 0) {
       return res.status(200).send({
@@ -290,6 +343,7 @@ const addTournamentToPlayer = async (req, res) => {
       message: "Todos los jugadores fueron inscritos correctamente",
     });
   } catch (err) {
+    console.error("Error en el servidor:", err);
     res.status(500).send("Error del servidor");
   }
 };

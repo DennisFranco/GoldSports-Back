@@ -234,8 +234,15 @@ const createMatch = async (req, res) => {
       });
     }
 
+    // Obtener el último ID y generar uno nuevo
+    const lastID = await db
+      .collection("matches")
+      .findOne({}, { sort: { id: -1 } });
+    const newId = lastID ? lastID.id + 1 : 1;
+
     const newMatch = {
-      id: (await db.collection("matches").countDocuments()) + 1,
+      id: newId,
+      type: "Eliminatorias",
       ...req.body,
     };
     await db.collection("matches").insertOne(newMatch);
@@ -469,6 +476,7 @@ const createTournamentMatches = async (req, res) => {
     const db = getDB();
     const { id_tournament } = req.body;
 
+    // Buscar el torneo
     const tournament = await db
       .collection("tournaments")
       .findOne({ id: id_tournament });
@@ -478,44 +486,88 @@ const createTournamentMatches = async (req, res) => {
         .send({ code: 404, message: "Torneo no encontrado" });
     }
 
+    // Obtener los grupos del torneo
     const tournamentGroups = await db
       .collection("groups")
       .find({ id_tournament })
       .toArray();
+
+    // Obtener los equipos por grupo
     const teamsGroups = await db
       .collection("teams_groups")
       .find({ id_group: { $in: tournamentGroups.map((g) => g.id) } })
       .toArray();
+
+    // Obtener los grupos del torneo
+    const tournamentMatches = await db
+      .collection("matches")
+      .find({ id_tournament })
+      .toArray();
+
+    // Obtener todos los equipos
     const teams = await db.collection("teams").find().toArray();
 
+    // Inicializar array para los nuevos partidos
     const newMatches = [];
-    let matchIdCounter = (await db.collection("matches").countDocuments()) + 1;
+
+    // Obtener el último ID y generar uno nuevo
+    const lastID = await db
+      .collection("matches")
+      .findOne({}, { sort: { id: -1 } });
+    let newId = lastID ? lastID.id + 1 : 1;
 
     for (const group of tournamentGroups) {
+      // Equipos pertenecientes al grupo actual
       const groupTeams = teamsGroups
         .filter((tg) => tg.id_group === group.id)
         .map((tg) => teams.find((t) => t.id === tg.id_team));
 
+      // Verificar si hay al menos dos equipos para generar partidos
+      if (groupTeams.length < 2) {
+        return res.status(400).send({
+          code: 400,
+          message: `No hay suficientes equipos en el grupo ${group.name} para generar partidos. Se necesitan al menos 2 equipos.`,
+        });
+      }
+
       const n = groupTeams.length;
       const isOdd = n % 2 !== 0;
-      if (isOdd) groupTeams.push(null);
+      if (isOdd) groupTeams.push(null); // Si el número de equipos es impar, se añade un equipo ficticio (null)
 
       let currentRound = 1;
 
+      // Generar las rondas
       for (let i = 0; i < groupTeams.length - 1; i++) {
         const roundMatches = [];
         for (let j = 0; j < groupTeams.length / 2; j++) {
           const home = groupTeams[j];
           const away = groupTeams[groupTeams.length - 1 - j];
 
+          // Validar que no se repita el partido entre los mismos equipos en este torneo
+          const existingMatchBetweenTeams = tournamentMatches.find(
+            (match) =>
+              (match.local_team === home?.id &&
+                match.visiting_team === away?.id) ||
+              (match.local_team === away?.id &&
+                match.visiting_team === home?.id)
+          );
+
+          if (existingMatchBetweenTeams) {
+            console.log(
+              `Ya existe un partido entre ${home?.name} y ${away?.name}, se omite la creación del partido.`
+            );
+            continue; // No agregar este partido
+          }
+
           if (!home || !away) {
             const activeTeam = home || away;
             if (activeTeam) {
               roundMatches.push({
-                id: matchIdCounter++,
+                id: newId++,
                 id_tournament,
                 id_group: group.id,
                 round: currentRound,
+                type: "Eliminatorias",
                 local_team: activeTeam.id,
                 visiting_team: null,
                 status: 5,
@@ -533,10 +585,11 @@ const createTournamentMatches = async (req, res) => {
             }
           } else {
             roundMatches.push({
-              id: matchIdCounter++,
+              id: newId++,
               id_tournament,
               id_group: group.id,
               round: currentRound,
+              type: "Eliminatorias",
               local_team: home.id,
               visiting_team: away.id,
               status: 1,
@@ -553,8 +606,11 @@ const createTournamentMatches = async (req, res) => {
             });
           }
         }
+
+        // Añadir partidos si pasaron las validaciones
         newMatches.push(...roundMatches);
 
+        // Rotar equipos para la siguiente ronda
         const rotatingTeams = groupTeams.slice(1);
         rotatingTeams.push(rotatingTeams.shift());
         groupTeams.splice(1, rotatingTeams.length, ...rotatingTeams);
@@ -563,6 +619,15 @@ const createTournamentMatches = async (req, res) => {
       }
     }
 
+    // Verificar si se crearon partidos
+    if (newMatches.length === 0) {
+      return res.status(400).send({
+        code: 400,
+        message: "Ya se han generado todos los partidos del torneo.",
+      });
+    }
+
+    // Insertar los nuevos partidos generados
     await db.collection("matches").insertMany(newMatches);
 
     res.status(200).send({
@@ -571,175 +636,687 @@ const createTournamentMatches = async (req, res) => {
       data: newMatches,
     });
   } catch (err) {
+    console.error("Error en el servidor:", err);
     res.status(500).send("Error en el servidor");
   }
 };
+
+// const generateKnockoutMatches = async (req, res) => {
+//   try {
+//     const db = getDB();
+//     const { id_tournament } = req.body;
+
+//     // Obtener partidos de eliminatoria por torneo
+//     const matches = await db
+//       .collection("matches")
+//       .find({ id_tournament })
+//       .toArray();
+
+//     // Deduce the current phase based on existing matches
+//     let phase = "";
+
+//     // Verificar si existen partidos de Octavos de Final
+//     const octavosMatches = matches.filter(
+//       (match) => match.type === "Octavos de Final"
+//     );
+//     if (octavosMatches.length === 0) {
+//       phase = "Octavos de Final";
+//     } else {
+//       // Verificar si los partidos de Octavos de Final ya han terminado
+//       const unfinishedOctavos = octavosMatches.filter(
+//         (match) => match.status === 1
+//       );
+//       if (unfinishedOctavos.length > 0) {
+//         return res.status(400).send({
+//           code: 400,
+//           message:
+//             "No se pueden generar Cuartos de Final, aún hay partidos de Octavos de Final sin jugar.",
+//           unfinishedMatches: unfinishedOctavos,
+//         });
+//       }
+
+//       // Verificar si existen partidos de Cuartos de Final
+//       const cuartosMatches = matches.filter(
+//         (match) => match.type === "Cuartos de Final"
+//       );
+//       if (cuartosMatches.length === 0) {
+//         phase = "Cuartos de Final";
+//       } else {
+//         // Verificar si los partidos de Cuartos de Final ya han terminado
+//         const unfinishedCuartos = cuartosMatches.filter(
+//           (match) => match.status === 1
+//         );
+//         if (unfinishedCuartos.length > 0) {
+//           return res.status(400).send({
+//             code: 400,
+//             message:
+//               "No se pueden generar Semifinales, aún hay partidos de Cuartos de Final sin jugar.",
+//             unfinishedMatches: unfinishedCuartos,
+//           });
+//         }
+
+//         // Verificar si existen partidos de Semifinales
+//         const semifinalMatches = matches.filter(
+//           (match) => match.type === "Semifinal"
+//         );
+//         if (semifinalMatches.length === 0) {
+//           phase = "Semifinal";
+//         } else {
+//           // Verificar si los partidos de Semifinal ya han terminado
+//           const unfinishedSemifinal = semifinalMatches.filter(
+//             (match) => match.status === 1
+//           );
+//           if (unfinishedSemifinal.length > 0) {
+//             return res.status(400).send({
+//               code: 400,
+//               message:
+//                 "No se puede generar la Final, aún hay partidos de Semifinales sin jugar.",
+//               unfinishedMatches: unfinishedSemifinal,
+//             });
+//           }
+
+//           // Si todos los partidos anteriores están completados, generamos la Final
+//           phase = "Final";
+//         }
+//       }
+//     }
+
+//     // Obtener el último ID y generar uno nuevo
+//     const lastID = await db
+//       .collection("matches")
+//       .findOne({}, { sort: { id: -1 } });
+//     let newId = lastID ? lastID.id + 1 : 1;
+
+//     let knockoutMatches = [];
+//     if (phase === "Octavos de Final") {
+//       // Generar los partidos de Octavos de Final (igual que antes)
+//       const classifications = await db
+//         .collection("classifications")
+//         .find({ id_tournament })
+//         .toArray();
+
+//       // Filtrar clasificaciones por torneo
+//       const tournamentClassifications = classifications.filter(
+//         (classification) => classification.id_tournament === id_tournament
+//       );
+
+//       // Agrupar por grupo
+//       const classificationsByGroup = tournamentClassifications.reduce(
+//         (acc, classification) => {
+//           if (!acc[classification.id_group]) {
+//             acc[classification.id_group] = [];
+//           }
+//           acc[classification.id_group].push(classification);
+//           return acc;
+//         },
+//         {}
+//       );
+
+//       // Ordenar cada grupo por puntos
+//       Object.values(classificationsByGroup).forEach((group) => {
+//         group.sort((a, b) => {
+//           if (b.points !== a.points) return b.points - a.points;
+//           if (b.goal_difference !== a.goal_difference)
+//             return b.goal_difference - a.goal_difference;
+//           if (b.favor_goals !== a.favor_goals)
+//             return b.favor_goals - a.favor_goals;
+//           return a.goals_against - b.goals_against;
+//         });
+//       });
+
+//       // Obtener los mejores equipos para Octavos
+//       const bestFirsts = [];
+//       const bestSeconds = [];
+//       const bestThirds = [];
+//       const bestFourth = [];
+//       const bestFifths = [];
+//       let bestSixth = null;
+
+//       Object.values(classificationsByGroup).forEach((group) => {
+//         bestFirsts.push(group[0]);
+//         bestSeconds.push(group[1]);
+//         bestThirds.push(group[2]);
+//         bestFourth.push(group[3]);
+//         bestFifths.push(group[4]);
+//         if (group[5] && (!bestSixth || group[5].points > bestSixth.points)) {
+//           bestSixth = group[5];
+//         }
+//       });
+
+//       // Ordenar los mejores primeros
+//       bestFirsts.sort((a, b) => {
+//         if (b.points !== a.points) return b.points - a.points;
+//         if (b.goal_difference !== a.goal_difference)
+//           return b.goal_difference - a.goal_difference;
+//         if (b.favor_goals !== a.favor_goals)
+//           return b.favor_goals - a.favor_goals;
+//         return a.goals_against - b.goals_against;
+//       });
+
+//       // Crear partidos de Octavos de Final
+//       knockoutMatches = [
+//         {
+//           round: "Partido 1",
+//           type: "Octavos de Final",
+//           local_team: bestFirsts[0].id_team,
+//           visiting_team: bestSixth?.id_team || null,
+//         },
+//         {
+//           round: "Partido 2",
+//           type: "Octavos de Final",
+//           local_team: bestFirsts[1].id_team,
+//           visiting_team: bestFifths[0].id_team,
+//         },
+//         {
+//           round: "Partido 3",
+//           type: "Octavos de Final",
+//           local_team: bestFirsts[2].id_team,
+//           visiting_team: bestFifths[1].id_team,
+//         },
+//         {
+//           round: "Partido 4",
+//           type: "Octavos de Final",
+//           local_team: bestSeconds[0].id_team,
+//           visiting_team: bestFifths[2].id_team,
+//         },
+//         {
+//           round: "Partido 5",
+//           type: "Octavos de Final",
+//           local_team: bestSeconds[1].id_team,
+//           visiting_team: bestFourth[0].id_team,
+//         },
+//         {
+//           round: "Partido 6",
+//           type: "Octavos de Final",
+//           local_team: bestSeconds[2].id_team,
+//           visiting_team: bestFourth[1].id_team,
+//         },
+//         {
+//           round: "Partido 7",
+//           type: "Octavos de Final",
+//           local_team: bestThirds[0].id_team,
+//           visiting_team: bestFourth[2].id_team,
+//         },
+//         {
+//           round: "Partido 8",
+//           type: "Octavos de Final",
+//           local_team: bestThirds[1].id_team,
+//           visiting_team: bestThirds[2].id_team,
+//         },
+//       ];
+//     } else if (phase === "Cuartos de Final") {
+//       // Crear partidos de Cuartos de Final utilizando los ganadores de Octavos
+//       const winners = octavosMatches.map((match) =>
+//         match.local_result > match.visiting_result
+//           ? match.local_team
+//           : match.visiting_team
+//       );
+
+//       knockoutMatches = [
+//         {
+//           round: "Partido A",
+//           type: "Cuartos de Final",
+//           local_team: winners[0], // Ganador del Partido 1
+//           visiting_team: winners[7], // Ganador del Partido 8
+//         },
+//         {
+//           round: "Partido B",
+//           type: "Cuartos de Final",
+//           local_team: winners[1], // Ganador del Partido 2
+//           visiting_team: winners[6], // Ganador del Partido 7
+//         },
+//         {
+//           round: "Partido C",
+//           type: "Cuartos de Final",
+//           local_team: winners[2], // Ganador del Partido 3
+//           visiting_team: winners[5], // Ganador del Partido 6
+//         },
+//         {
+//           round: "Partido D",
+//           type: "Cuartos de Final",
+//           local_team: winners[3], // Ganador del Partido 4
+//           visiting_team: winners[4], // Ganador del Partido 5
+//         },
+//       ];
+//     } else if (phase === "Semifinal") {
+//       // Crear partidos de Semifinal utilizando los ganadores de Cuartos de Final
+//       const winners = cuartosMatches.map((match) =>
+//         match.local_result > match.visiting_result
+//           ? match.local_team
+//           : match.visiting_team
+//       );
+
+//       knockoutMatches = [
+//         {
+//           round: "Semifinal 1",
+//           type: "Semifinal",
+//           local_team: winners[0], // Ganador del Partido A
+//           visiting_team: winners[3], // Ganador del Partido D
+//         },
+//         {
+//           round: "Semifinal 2",
+//           type: "Semifinal",
+//           local_team: winners[1], // Ganador del Partido B
+//           visiting_team: winners[2], // Ganador del Partido C
+//         },
+//       ];
+//     } else if (phase === "Final") {
+//       // Crear partido de la Final utilizando los ganadores de las Semifinales
+//       const winners = semifinalMatches.map((match) =>
+//         match.local_result > match.visiting_result
+//           ? match.local_team
+//           : match.visiting_team
+//       );
+
+//       knockoutMatches = [
+//         {
+//           round: "Final",
+//           type: "Final",
+//           local_team: winners[0], // Ganador de Semifinal 1
+//           visiting_team: winners[1], // Ganador de Semifinal 2
+//         },
+//       ];
+//     }
+
+//     // Crear partidos
+//     const newMatches = knockoutMatches.map((match, index) => ({
+//       id: newId + 1 + index,
+//       id_tournament,
+//       ...match,
+//       status: 1,
+//       date: "",
+//       hour_start: "",
+//       place: 0,
+//       team_refereeing: 0,
+//       delegates: "",
+//       local_result: 0,
+//       visiting_result: 0,
+//       referee: "",
+//       id_planner: 0,
+//       observations: "",
+//     }));
+
+//     // Insertar los nuevos partidos generados
+//     await db.collection("matches").insertMany(newMatches);
+
+//     res.status(200).send({
+//       code: 200,
+//       message: `Partidos de ${phase} generados con éxito`,
+//       data: newMatches,
+//     });
+//   } catch (err) {
+//     console.error("Error en el servidor:", err);
+//     res.status(500).send("Error en el servidor");
+//   }
+// };
+
+// const generateKnockoutMatches = async (req, res) => {
+//   try {
+//     const db = getDB();
+//     const { id_tournament } = req.body;
+
+//     // Obtener información del torneo para verificar el nivel de clasificación
+//     const tournament = await db
+//       .collection("tournaments")
+//       .findOne({ id: id_tournament });
+
+//     if (!tournament) {
+//       return res.status(404).send({
+//         code: 404,
+//         message: "Torneo no encontrado",
+//       });
+//     }
+
+//     const { classification } = tournament;
+
+//     // Determinar la fase inicial según el nivel de clasificación
+//     const phaseMapping = {
+//       1: "Final",
+//       2: "Semifinal",
+//       3: "Cuartos de Final",
+//       4: "Octavos de Final",
+//       5: "Dieciseisavos de Final",
+//     };
+
+//     const phase = phaseMapping[classification];
+
+//     if (!phase) {
+//       return res.status(400).send({
+//         code: 400,
+//         message: "Nivel de clasificación no válido para el torneo.",
+//       });
+//     }
+
+//     // Obtener el último ID y generar uno nuevo
+//     const lastID = await db
+//       .collection("matches")
+//       .findOne({}, { sort: { id: -1 } });
+//     let newId = lastID ? lastID.id + 1 : 1;
+
+//     let knockoutMatches = [];
+
+//     if (phase === "Octavos de Final") {
+//       // Generar los partidos de Octavos de Final (igual que antes)
+//       const classifications = await db
+//         .collection("classifications")
+//         .find({ id_tournament })
+//         .toArray();
+
+//       // Filtrar clasificaciones por torneo
+//       const tournamentClassifications = classifications.filter(
+//         (classification) => classification.id_tournament === id_tournament
+//       );
+
+//       // Agrupar por grupo
+//       const classificationsByGroup = tournamentClassifications.reduce(
+//         (acc, classification) => {
+//           if (!acc[classification.id_group]) {
+//             acc[classification.id_group] = [];
+//           }
+//           acc[classification.id_group].push(classification);
+//           return acc;
+//         },
+//         {}
+//       );
+
+//       // Ordenar cada grupo por puntos
+//       Object.values(classificationsByGroup).forEach((group) => {
+//         group.sort((a, b) => {
+//           if (b.points !== a.points) return b.points - a.points;
+//           if (b.goal_difference !== a.goal_difference)
+//             return b.goal_difference - a.goal_difference;
+//           if (b.favor_goals !== a.favor_goals)
+//             return b.favor_goals - a.favor_goals;
+//           return a.goals_against - b.goals_against;
+//         });
+//       });
+
+//       // Obtener los mejores equipos para Octavos
+//       const bestFirsts = [];
+//       const bestSeconds = [];
+//       const bestThirds = [];
+//       const bestFourth = [];
+//       const bestFifths = [];
+//       let bestSixth = null;
+
+//       Object.values(classificationsByGroup).forEach((group) => {
+//         bestFirsts.push(group[0]);
+//         bestSeconds.push(group[1]);
+//         bestThirds.push(group[2]);
+//         bestFourth.push(group[3]);
+//         bestFifths.push(group[4]);
+//         if (group[5] && (!bestSixth || group[5].points > bestSixth.points)) {
+//           bestSixth = group[5];
+//         }
+//       });
+
+//       // Ordenar los mejores primeros
+//       bestFirsts.sort((a, b) => {
+//         if (b.points !== a.points) return b.points - a.points;
+//         if (b.goal_difference !== a.goal_difference)
+//           return b.goal_difference - a.goal_difference;
+//         if (b.favor_goals !== a.favor_goals)
+//           return b.favor_goals - a.favor_goals;
+//         return a.goals_against - b.goals_against;
+//       });
+
+//       // Crear partidos de Octavos de Final
+//       knockoutMatches = [
+//         {
+//           round: "Partido 1",
+//           type: "Octavos de Final",
+//           local_team: bestFirsts[0].id_team,
+//           visiting_team: bestSixth?.id_team || null,
+//         },
+//         {
+//           round: "Partido 2",
+//           type: "Octavos de Final",
+//           local_team: bestFirsts[1].id_team,
+//           visiting_team: bestFifths[0].id_team,
+//         },
+//         {
+//           round: "Partido 3",
+//           type: "Octavos de Final",
+//           local_team: bestFirsts[2].id_team,
+//           visiting_team: bestFifths[1].id_team,
+//         },
+//         {
+//           round: "Partido 4",
+//           type: "Octavos de Final",
+//           local_team: bestSeconds[0].id_team,
+//           visiting_team: bestFifths[2].id_team,
+//         },
+//         {
+//           round: "Partido 5",
+//           type: "Octavos de Final",
+//           local_team: bestSeconds[1].id_team,
+//           visiting_team: bestFourth[0].id_team,
+//         },
+//         {
+//           round: "Partido 6",
+//           type: "Octavos de Final",
+//           local_team: bestSeconds[2].id_team,
+//           visiting_team: bestFourth[1].id_team,
+//         },
+//         {
+//           round: "Partido 7",
+//           type: "Octavos de Final",
+//           local_team: bestThirds[0].id_team,
+//           visiting_team: bestFourth[2].id_team,
+//         },
+//         {
+//           round: "Partido 8",
+//           type: "Octavos de Final",
+//           local_team: bestThirds[1].id_team,
+//           visiting_team: bestThirds[2].id_team,
+//         },
+//       ];
+//     } else if (phase === "Cuartos de Final") {
+//       // Crear partidos de Cuartos de Final utilizando los ganadores de Octavos
+//       const winners = octavosMatches.map((match) =>
+//         match.local_result > match.visiting_result
+//           ? match.local_team
+//           : match.visiting_team
+//       );
+
+//       knockoutMatches = [
+//         {
+//           round: "Partido A",
+//           type: "Cuartos de Final",
+//           local_team: winners[0], // Ganador del Partido 1
+//           visiting_team: winners[7], // Ganador del Partido 8
+//         },
+//         {
+//           round: "Partido B",
+//           type: "Cuartos de Final",
+//           local_team: winners[1], // Ganador del Partido 2
+//           visiting_team: winners[6], // Ganador del Partido 7
+//         },
+//         {
+//           round: "Partido C",
+//           type: "Cuartos de Final",
+//           local_team: winners[2], // Ganador del Partido 3
+//           visiting_team: winners[5], // Ganador del Partido 6
+//         },
+//         {
+//           round: "Partido D",
+//           type: "Cuartos de Final",
+//           local_team: winners[3], // Ganador del Partido 4
+//           visiting_team: winners[4], // Ganador del Partido 5
+//         },
+//       ];
+//     } else if (phase === "Semifinal") {
+//       // Crear partidos de Semifinal utilizando los ganadores de Cuartos de Final
+//       const winners = cuartosMatches.map((match) =>
+//         match.local_result > match.visiting_result
+//           ? match.local_team
+//           : match.visiting_team
+//       );
+
+//       knockoutMatches = [
+//         {
+//           round: "Semifinal 1",
+//           type: "Semifinal",
+//           local_team: winners[0], // Ganador del Partido A
+//           visiting_team: winners[3], // Ganador del Partido D
+//         },
+//         {
+//           round: "Semifinal 2",
+//           type: "Semifinal",
+//           local_team: winners[1], // Ganador del Partido B
+//           visiting_team: winners[2], // Ganador del Partido C
+//         },
+//       ];
+//     } else if (phase === "Final") {
+//       // Crear partido de la Final utilizando los ganadores de las Semifinales
+//       const winners = semifinalMatches.map((match) =>
+//         match.local_result > match.visiting_result
+//           ? match.local_team
+//           : match.visiting_team
+//       );
+
+//       knockoutMatches = [
+//         {
+//           round: "Final",
+//           type: "Final",
+//           local_team: winners[0], // Ganador de Semifinal 1
+//           visiting_team: winners[1], // Ganador de Semifinal 2
+//         },
+//       ];
+//     }
+
+//     // Crear partidos
+//     const newMatches = knockoutMatches.map((match, index) => ({
+//       id: newId + 1 + index,
+//       id_tournament,
+//       ...match,
+//       status: 1,
+//       date: "",
+//       hour_start: "",
+//       place: 0,
+//       team_refereeing: 0,
+//       delegates: "",
+//       local_result: 0,
+//       visiting_result: 0,
+//       referee: "",
+//       id_planner: 0,
+//       observations: "",
+//     }));
+
+//     // Insertar los nuevos partidos generados
+//     await db.collection("matches").insertMany(newMatches);
+
+//     res.status(200).send({
+//       code: 200,
+//       message: `Partidos de ${phase} generados con éxito`,
+//       data: newMatches,
+//     });
+//   } catch (err) {
+//     console.error("Error en el servidor:", err);
+//     res.status(500).send("Error en el servidor");
+//   }
+// };
 
 const generateKnockoutMatches = async (req, res) => {
   try {
     const db = getDB();
     const { id_tournament } = req.body;
 
-    const [classifications, teams, matches] = await Promise.all([
-      db.collection("classifications").find({ id_tournament }).toArray(),
-      db.collection("teams").find().toArray(),
-      db.collection("matches").find().toArray(),
-    ]);
+    // Obtener información del torneo para verificar el nivel de clasificación
+    const tournament = await db
+      .collection("tournaments")
+      .findOne({ id: id_tournament });
 
-    // Filtrar clasificaciones por torneo
-    const tournamentClassifications = classifications.filter(
-      (classification) => classification.id_tournament === id_tournament
-    );
-
-    // Agrupar por grupo
-    const classificationsByGroup = tournamentClassifications.reduce(
-      (acc, classification) => {
-        if (!acc[classification.id_group]) {
-          acc[classification.id_group] = [];
-        }
-        acc[classification.id_group].push(classification);
-        return acc;
-      },
-      {}
-    );
-
-    // Ordenar cada grupo por puntos
-    Object.values(classificationsByGroup).forEach((group) => {
-      group.sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        if (b.goal_difference !== a.goal_difference)
-          return b.goal_difference - a.goal_difference;
-        if (b.favor_goals !== a.favor_goals)
-          return b.favor_goals - a.favor_goals;
-        return a.goals_against - b.goals_against;
+    if (!tournament) {
+      return res.status(404).send({
+        code: 404,
+        message: "Torneo no encontrado",
       });
-    });
+    }
 
-    // Obtener los 5 mejores de cada grupo y el mejor sexto lugar
-    const bestFirsts = [];
-    const bestSeconds = [];
-    const bestThirds = [];
-    const bestFourth = [];
-    const bestFifths = [];
-    let bestSixth = null;
+    const { classification } = tournament;
 
-    Object.values(classificationsByGroup).forEach((group) => {
-      bestFirsts.push(group[0]);
-      bestSeconds.push(group[1]);
-      bestThirds.push(group[2]);
-      bestFourth.push(group[3]);
-      bestFifths.push(group[4]);
-      if (group[5] && (!bestSixth || group[5].points > bestSixth.points)) {
-        bestSixth = group[5];
+    // Determinar la fase inicial según el nivel de clasificación
+    const phaseMapping = {
+      1: "Final",
+      2: "Semifinal",
+      3: "Cuartos de Final",
+      4: "Octavos de Final",
+      5: "Dieciseisavos de Final",
+    };
+
+    const phase = phaseMapping[classification];
+
+    if (!phase) {
+      return res.status(400).send({
+        code: 400,
+        message: "Nivel de clasificación no válido para el torneo.",
+      });
+    }
+
+    // Obtener equipos clasificados
+    const classifiedTeams = await db
+      .collection("classifications")
+      .find({ id_tournament, classified: 1 })
+      .toArray();
+
+    if (classifiedTeams.length === 0) {
+      return res.status(400).send({
+        code: 400,
+        message: "No hay equipos clasificados para generar los partidos.",
+      });
+    }
+
+    // Barajar equipos aleatoriamente
+    const shuffledTeams = classifiedTeams.sort(() => Math.random() - 0.5);
+
+    // Dividir en pares para los partidos
+    const knockoutMatches = [];
+    for (let i = 0; i < shuffledTeams.length; i += 2) {
+      if (shuffledTeams[i + 1]) {
+        knockoutMatches.push({
+          round: `Partido ${Math.ceil((i + 1) / 2)}`,
+          type: phase,
+          local_team: shuffledTeams[i].id_team,
+          visiting_team: shuffledTeams[i + 1].id_team,
+        });
       }
-    });
+    }
 
-    // Ordenar los mejores primeros
-    bestFirsts.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.goal_difference !== a.goal_difference)
-        return b.goal_difference - a.goal_difference;
-      if (b.favor_goals !== a.favor_goals) return b.favor_goals - a.favor_goals;
-      return a.goals_against - b.goals_against;
-    });
+    // Obtener el último ID y generar uno nuevo
+    const lastID = await db
+      .collection("matches")
+      .findOne({}, { sort: { id: -1 } });
+    let newId = lastID ? lastID.id + 1 : 1;
 
-    // Obtener el número actual de partidos en la colección
-    const currentMatchCount = await db.collection("matches").countDocuments();
-
-    // Generar los partidos de octavos de final
-    const knockoutMatches = [
-      {
-        round: "Octavos de Final",
-        local_team: bestFirsts[0].id_team,
-        visiting_team: bestSixth?.id_team || null,
-      },
-      {
-        round: "Octavos de Final",
-        local_team: bestFirsts[1].id_team,
-        visiting_team: bestFifths[0].id_team,
-      },
-      {
-        round: "Octavos de Final",
-        local_team: bestFirsts[2].id_team,
-        visiting_team: bestFifths[1].id_team,
-      },
-      {
-        round: "Octavos de Final",
-        local_team: bestSeconds[0].id_team,
-        visiting_team: bestFifths[2].id_team,
-      },
-      {
-        round: "Octavos de Final",
-        local_team: bestSeconds[1].id_team,
-        visiting_team: bestFourth[0].id_team,
-      },
-      {
-        round: "Octavos de Final",
-        local_team: bestSeconds[2].id_team,
-        visiting_team: bestFourth[1].id_team,
-      },
-      {
-        round: "Octavos de Final",
-        local_team: bestThirds[0].id_team,
-        visiting_team: bestFourth[2].id_team,
-      },
-      {
-        round: "Octavos de Final",
-        local_team: bestThirds[1].id_team,
-        visiting_team: bestThirds[2].id_team,
-      },
-      {
-        round: "Cuartos de Final",
-        local_team: "Ganador del Partido 1",
-        visiting_team: "Ganador del Partido 8",
-      },
-      {
-        round: "Cuartos de Final",
-        local_team: "Ganador del Partido 2",
-        visiting_team: "Ganador del Partido 7",
-      },
-      {
-        round: "Cuartos de Final",
-        local_team: "Ganador del Partido 3",
-        visiting_team: "Ganador del Partido 6",
-      },
-      {
-        round: "Cuartos de Final",
-        local_team: "Segundo del Grupo 4",
-        visiting_team: "Ganador del Partido 5",
-      },
-      {
-        round: "Semifinal",
-        local_team: "Ganador del Partido A",
-        visiting_team: "Ganador del Partido D",
-      },
-      {
-        round: "Semifinal",
-        local_team: "Ganador del Partido B",
-        visiting_team: "Ganador del Partido C",
-      },
-      {
-        round: "Final",
-        local_team: "Ganador del Partido E",
-        visiting_team: "Ganador del Partido F",
-      },
-    ];
-
+    // Crear partidos con detalles adicionales
     const newMatches = knockoutMatches.map((match, index) => ({
-      id: currentMatchCount + 1 + index,
+      id: newId + index,
       id_tournament,
       ...match,
       status: 1,
+      date: "",
+      hour_start: "",
+      place: 0,
+      team_refereeing: 0,
+      delegates: "",
+      local_result: 0,
+      visiting_result: 0,
+      referee: "",
+      id_planner: 0,
+      observations: "",
     }));
 
+    // Insertar los nuevos partidos generados
     await db.collection("matches").insertMany(newMatches);
 
     res.status(200).send({
       code: 200,
-      message: "Partidos de eliminatorias generados con éxito",
+      message: `Partidos de ${phase} generados con éxito`,
       data: newMatches,
     });
   } catch (err) {
+    console.error("Error en el servidor:", err);
     res.status(500).send("Error en el servidor");
   }
 };

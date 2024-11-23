@@ -186,6 +186,7 @@ router
     verificarToken,
     classificationsController.getAllClassifications
   )
+  .put("/update-classifications", classificationsController.createClassified)
   .get("/playerStats", verificarToken, playerStatsController.getAllPlayerStats)
   .get(
     "/playerStats/:playerId/tournament/:tournamentId",
