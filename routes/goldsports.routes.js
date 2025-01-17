@@ -17,17 +17,21 @@ const penaltiesController = require("./controllers/penaltiesController.js");
 
 function verificarToken(req, res, next) {
   const bearerHeader = req.headers["authorization"];
+
   if (typeof bearerHeader !== "undefined") {
-    const bearerToken = bearerHeader.split(" ")[1];
-    jwt.verify(bearerToken, process.env.SECRET_KEY, (err) => {
+    const bearerToken = bearerHeader.split(" ")[1]; // Obtener el token del header
+
+    jwt.verify(bearerToken, process.env.SECRET_KEY, (err, decoded) => {
       if (err) {
-        res.sendStatus(403);
-      } else {
-        next();
+        return res.sendStatus(403); // Token inválido o expirado
       }
+
+      // Adjuntar los datos decodificados del usuario a req
+      req.user = decoded.user;
+      next(); // Continuar al siguiente middleware o controlador
     });
   } else {
-    res.sendStatus(403);
+    res.sendStatus(403); // No se proporcionó token
   }
 }
 

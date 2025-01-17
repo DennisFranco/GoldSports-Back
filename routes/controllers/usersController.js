@@ -9,6 +9,7 @@ const getAllUsers = async (req, res) => {
     const users = await db.collection("users").find().toArray();
     const roles = await db.collection("roles").find().toArray();
 
+    console.log(req.user);
     if (users && roles) {
       const roleFilter = parseInt(req.query.role);
 
