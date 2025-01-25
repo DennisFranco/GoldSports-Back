@@ -1,10 +1,14 @@
 const { getDB } = require("../../config/db");
 
-// Obtener todos los equipos
 const getAllTeams = async (req, res) => {
   try {
     const db = getDB();
-    const teams = await db.collection("teams").find().toArray();
+
+    // Definir el filtro según el rol del usuario
+    const filter = req.user.role === 1 ? {} : { created_by: req.user.id };
+
+    // Obtener los equipos con el filtro aplicado
+    const teams = await db.collection("teams").find(filter).toArray();
 
     if (teams) {
       res.status(200).send({
@@ -13,10 +17,17 @@ const getAllTeams = async (req, res) => {
         data: teams,
       });
     } else {
-      return res.status(500).send("Error fetching teams from database");
+      return res.status(500).send({
+        code: 500,
+        message: "Error al obtener los equipos de la base de datos",
+      });
     }
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send({
+      code: 500,
+      message: "Error del servidor",
+      error: err.message,
+    });
   }
 };
 
@@ -279,6 +290,7 @@ const createTeam = async (req, res) => {
     const newTeam = {
       id: newId,
       ...req.body,
+      created_by: req.user.id,
     };
     await db.collection("teams").insertOne(newTeam);
 

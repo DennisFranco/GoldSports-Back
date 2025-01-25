@@ -1,21 +1,26 @@
 const { getDB } = require("../../config/db");
 
-// Obtener todos los torneos con información de la categoría
 const getAllTournaments = async (req, res) => {
   try {
     const db = getDB();
+
+    // Definir el filtro según el rol del usuario
+    const filter = req.user.role === 1 ? {} : { created_by: req.user.id };
+
+    // Obtener torneos y categorías simultáneamente con la condición aplicada a torneos
     const [tournaments, categories] = await Promise.all([
-      db.collection("tournaments").find().toArray(),
+      db.collection("tournaments").find(filter).toArray(),
       db.collection("categories").find().toArray(),
     ]);
 
+    // Mapear los torneos con su respectiva categoría
     const tournamentsWithCategory = tournaments.map((tournament) => {
       const category = categories.find(
         (cat) => cat.id === tournament.id_category
       );
       return {
         ...tournament,
-        category: category ? category : null,
+        category: category || null, // Si no se encuentra la categoría, asignar null
       };
     });
 
@@ -25,7 +30,11 @@ const getAllTournaments = async (req, res) => {
       data: tournamentsWithCategory,
     });
   } catch (err) {
-    res.status(500).send("Error del servidor");
+    res.status(500).send({
+      code: 500,
+      message: "Error del servidor",
+      error: err.message,
+    });
   }
 };
 
@@ -284,7 +293,6 @@ const getTournamentMatches = async (req, res) => {
   }
 };
 
-
 // Obtener clasificación del torneo
 const getTournamentClassification = async (req, res) => {
   try {
@@ -395,6 +403,7 @@ const createTournament = async (req, res) => {
     const newTournament = {
       id: newId,
       ...tournamentData,
+      created_by: req.user.id,
     };
     await db.collection("tournaments").insertOne(newTournament);
 

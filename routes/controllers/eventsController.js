@@ -61,11 +61,19 @@ const createEvent = async (req, res) => {
     const events = await db.collection("events").find().toArray();
     const matches = await db.collection("matches").find().toArray();
     const players = await db.collection("players").find().toArray();
+    const tournaments = await db.collection("tournaments").find().toArray();
     const classifications = await db
       .collection("classifications")
       .find()
       .toArray();
     const playerStats = await db.collection("player_stats").find().toArray();
+
+    const tournament = tournaments.find(
+      (t) => t.id === parseInt(req.body.id_tournament)
+    );
+    if (!tournament) {
+      return res.status(404).send("Torneo no encontrado");
+    }
 
     // Verificar si el jugador ya tiene un evento de tipo 3 (tarjeta roja) o dos eventos de tipo 2 (tarjetas amarillas) en este partido
     const playerEvents = events.filter(
@@ -234,19 +242,41 @@ const createEvent = async (req, res) => {
             visitingTeam.favor_goals - visitingTeam.goals_against;
 
           // Actualizar puntos, partidos ganados, empatados y perdidos
-          if (match.local_result > match.visiting_result) {
-            localTeam.points += 3;
-            localTeam.matches_won += 1;
-            visitingTeam.lost_matches += 1;
-          } else if (match.local_result < match.visiting_result) {
-            visitingTeam.points += 3;
-            visitingTeam.matches_won += 1;
-            localTeam.lost_matches += 1;
+          if (tournament.id_category === 1) {
+            if (match.local_result > match.visiting_result) {
+              localTeam.points += 2;
+              localTeam.matches_won += 1;
+              visitingTeam.lost_matches += 1;
+            } else if (match.local_result < match.visiting_result) {
+              visitingTeam.points += 2;
+              visitingTeam.matches_won += 1;
+              localTeam.lost_matches += 1;
+            } else {
+              localTeam.points += 1;
+              visitingTeam.points += 1;
+              localTeam.tied_matches += 1;
+              visitingTeam.tied_matches += 1;
+            }
+
+            localTeam.points += req.body.teamAProtocol ? 2 : 0;
+            localTeam.points += req.body.teamAConduct ? 2 : 0;
+            visitingTeam.points += req.body.teamBProtocol ? 2 : 0;
+            visitingTeam.points += req.body.teamBConduct ? 2 : 0;
           } else {
-            localTeam.points += 1;
-            visitingTeam.points += 1;
-            localTeam.tied_matches += 1;
-            visitingTeam.tied_matches += 1;
+            if (match.local_result > match.visiting_result) {
+              localTeam.points += 3;
+              localTeam.matches_won += 1;
+              visitingTeam.lost_matches += 1;
+            } else if (match.local_result < match.visiting_result) {
+              visitingTeam.points += 3;
+              visitingTeam.matches_won += 1;
+              localTeam.lost_matches += 1;
+            } else {
+              localTeam.points += 1;
+              visitingTeam.points += 1;
+              localTeam.tied_matches += 1;
+              visitingTeam.tied_matches += 1;
+            }
           }
 
           await db.collection("classifications").updateOne(

@@ -420,6 +420,7 @@ const createPlayer = async (req, res) => {
     const newPlayer = {
       id: newId,
       ...req.body,
+      created_by: req.user.id,
     };
 
     await db.collection("players").insertOne(newPlayer);

@@ -46,7 +46,7 @@ router
   .post("/fields", verificarToken, fieldsController.createField)
   .put("/fields/:id", verificarToken, fieldsController.updateField)
   .delete("/fields/:id", verificarToken, fieldsController.deleteField)
-  .get("/players", playersController.getAllPlayers)
+  .get("/players", verificarToken, playersController.getAllPlayers)
   .get("/players/:id", verificarToken, playersController.getPlayerByID)
   .post("/players", verificarToken, playersController.createPlayer)
   .post(
