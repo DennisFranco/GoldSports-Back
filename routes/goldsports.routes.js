@@ -187,7 +187,6 @@ router
   )
   .get(
     "/classifications",
-    verificarToken,
     classificationsController.getAllClassifications
   )
   .put("/update-classifications", classificationsController.createClassified)
