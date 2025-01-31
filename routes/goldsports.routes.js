@@ -117,7 +117,7 @@ router
     verificarToken,
     matchesController.cancelMatchDueToIncident
   )
-  .get("/tournaments", verificarToken, tournamentController.getAllTournaments)
+  .get("/tournaments", tournamentController.getAllTournaments)
   .get(
     "/tournaments/:id",
     verificarToken,

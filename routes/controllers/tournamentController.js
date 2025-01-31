@@ -254,12 +254,17 @@ const getTournamentMatches = async (req, res) => {
     ];
 
     finalStages.forEach(({ key, type }) => {
-      const stageMatches = tournamentMatches.filter((match) => match.type === type);
+      const stageMatches = tournamentMatches.filter(
+        (match) => match.type === type
+      );
 
       if (stageMatches.length > 0) {
         // Agrupar partidos con claves como PARTIDO 1, PARTIDO 2, etc.
         const matchesByKey = stageMatches.reduce((acc, match, index) => {
-          const matchKey = stageMatches.length === 1 ? "PARTIDO UNICO" : `PARTIDO ${index + 1}`;
+          const matchKey =
+            stageMatches.length === 1
+              ? "PARTIDO UNICO"
+              : `PARTIDO ${index + 1}`;
           if (!acc[matchKey]) {
             acc[matchKey] = [];
           }
@@ -387,7 +392,6 @@ const getTournamentTeams = async (req, res) => {
   }
 };
 
-// Crear un nuevo torneo
 const createTournament = async (req, res) => {
   try {
     const db = getDB();
@@ -402,7 +406,11 @@ const createTournament = async (req, res) => {
 
     const newTournament = {
       id: newId,
-      ...tournamentData,
+      edition: tournamentData.year, // Si year viene en tournamentData
+      year: new Date().getFullYear(), // Año actual
+      name: tournamentData.name,
+      id_category: tournamentData.id_category,
+      classification: tournamentData.classification,
       created_by: req.user.id,
     };
     await db.collection("tournaments").insertOne(newTournament);
@@ -414,7 +422,7 @@ const createTournament = async (req, res) => {
 
     // Obtener el último ID y generar uno nuevo
     const lastIDGroup = await db
-      .collection("tournaments")
+      .collection("groups") // Corregí esta línea para consultar en la colección correcta
       .findOne({}, { sort: { id: -1 } });
     const newIdGroup = lastIDGroup ? lastIDGroup.id + 1 : 1;
 
