@@ -218,7 +218,7 @@ router
   .post("/penalties", verificarToken, penaltiesController.createPenalty)
   .put("/penalties/:id", verificarToken, penaltiesController.updatePenalty)
   .delete("/penalties/:id", verificarToken, penaltiesController.deletePenalty)
-  .put("/torneos", webController.getAllTournaments)
-  .delete("/tablas", webController.getAllClassifications);
+  .get("/torneos", webController.getAllTournaments)
+  .get("/tablas", webController.getAllClassifications);
 
 module.exports = router;
