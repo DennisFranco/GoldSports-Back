@@ -175,7 +175,7 @@ router
   .post("/penalties", verifyToken, penaltiesController.createPenalty)
   .put("/penalties/:id", verifyToken, penaltiesController.updatePenalty)
   .delete("/penalties/:id", verifyToken, penaltiesController.deletePenalty)
-  .get("/torneos", publicLimiter, webController.getAllTournaments)
-  .get("/tablas", publicLimiter, webController.getAllClassifications);
+  .get("/torneos", webController.getAllTournaments)
+  .get("/tablas", webController.getAllClassifications);
 
 module.exports = router;
