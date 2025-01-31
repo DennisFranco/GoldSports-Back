@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const jwt = require("jsonwebtoken");
 const usersController = require("./controllers/usersController.js");
 const fieldsController = require("./controllers/fieldsController.js");
 const playersController = require("./controllers/playersController.js");
@@ -14,203 +13,169 @@ const eventsController = require("./controllers/eventsController.js");
 const matchPlayerNumberController = require("./controllers/matchPlayerNumberController.js");
 const playerStatsController = require("./controllers/playerStatsController.js");
 const penaltiesController = require("./controllers/penaltiesController.js");
-
-function verificarToken(req, res, next) {
-  const bearerHeader = req.headers["authorization"];
-
-  if (typeof bearerHeader !== "undefined") {
-    const bearerToken = bearerHeader.split(" ")[1]; // Obtener el token del header
-
-    jwt.verify(bearerToken, process.env.SECRET_KEY, (err, decoded) => {
-      if (err) {
-        return res.sendStatus(403); // Token inválido o expirado
-      }
-
-      // Adjuntar los datos decodificados del usuario a req
-      req.user = decoded.user;
-      next(); // Continuar al siguiente middleware o controlador
-    });
-  } else {
-    res.sendStatus(403); // No se proporcionó token
-  }
-}
+const webController = require("./controllers/webController.js");
+const verifyToken = require("../middlewares/verifyToken");
+const publicLimiter = require("../middlewares/rateLimiter");
 
 router
   .post("/login", usersController.loginUser)
-  .get("/users", verificarToken, usersController.getAllUsers)
-  .get("/roles", verificarToken, usersController.getAllRoles)
-  .post("/users", verificarToken, usersController.createUser)
-  .put("/users/:id", verificarToken, usersController.editUser)
-  .get("/fields", verificarToken, fieldsController.getAllFields)
-  .get("/fields/:id", verificarToken, fieldsController.getFieldByID)
-  .post("/fields", verificarToken, fieldsController.createField)
-  .put("/fields/:id", verificarToken, fieldsController.updateField)
-  .delete("/fields/:id", verificarToken, fieldsController.deleteField)
-  .get("/players", verificarToken, playersController.getAllPlayers)
-  .get("/players/:id", verificarToken, playersController.getPlayerByID)
-  .post("/players", verificarToken, playersController.createPlayer)
+  .get("/users", verifyToken, usersController.getAllUsers)
+  .get("/roles", verifyToken, usersController.getAllRoles)
+  .post("/users", verifyToken, usersController.createUser)
+  .put("/users/:id", verifyToken, usersController.editUser)
+  .get("/fields", verifyToken, fieldsController.getAllFields)
+  .get("/fields/:id", verifyToken, fieldsController.getFieldByID)
+  .post("/fields", verifyToken, fieldsController.createField)
+  .put("/fields/:id", verifyToken, fieldsController.updateField)
+  .delete("/fields/:id", verifyToken, fieldsController.deleteField)
+  .get("/players", verifyToken, playersController.getAllPlayers)
+  .get("/players/:id", verifyToken, playersController.getPlayerByID)
+  .post("/players", verifyToken, playersController.createPlayer)
   .post(
     "/players/addTournament",
-    verificarToken,
+    verifyToken,
     playersController.addTournamentToPlayer
   )
   .post(
     "/removeTournamentFromPlayer",
-    verificarToken,
+    verifyToken,
     playersController.removeTournamentFromPlayer
   )
-  .put("/players/:id", verificarToken, playersController.updatePlayer)
-  .delete("/players/:id", verificarToken, playersController.deletePlayer)
+  .put("/players/:id", verifyToken, playersController.updatePlayer)
+  .delete("/players/:id", verifyToken, playersController.deletePlayer)
   .delete(
     "/players/team/:id_team",
-    verificarToken,
+    verifyToken,
     playersController.deletePlayersByTeamID
   )
-  .get("/teams", verificarToken, teamsController.getAllTeams)
+  .get("/teams", verifyToken, teamsController.getAllTeams)
   .get(
     "/teamsWithoutGroup/:tournamentId",
-    verificarToken,
+    verifyToken,
     teamsController.getTeamsWithoutGroup
   )
-  .get("/teams/:id", verificarToken, teamsController.getTeamByID)
+  .get("/teams/:id", verifyToken, teamsController.getTeamByID)
   .get(
     "/teams/tournament/:id_tournament",
-    verificarToken,
+    verifyToken,
     teamsController.getTeamsByTournament
   )
   .get(
     "/players/tournament/:tournamentId/team/:teamId",
-    verificarToken,
+    verifyToken,
     teamsController.getPlayersByTournamentAndTeam
   )
-  .post("/teams", verificarToken, teamsController.createTeam)
-  .put("/teams/:id", verificarToken, teamsController.updateTeam)
-  .delete("/teams/:id", verificarToken, teamsController.deleteTeam)
-  .get("/matches", verificarToken, matchesController.getAllMatches)
-  .get("/matches/:id", verificarToken, matchesController.getMatchByID)
-  .get(
-    "/download-excel/match/:id",
-    verificarToken,
-    matchesController.generateXLS
-  )
-  .get("/matchData/:id", verificarToken, matchesController.getMatchData)
-  .post("/matches", verificarToken, matchesController.createMatch)
+  .post("/teams", verifyToken, teamsController.createTeam)
+  .put("/teams/:id", verifyToken, teamsController.updateTeam)
+  .delete("/teams/:id", verifyToken, teamsController.deleteTeam)
+  .get("/matches", verifyToken, matchesController.getAllMatches)
+  .get("/matches/:id", verifyToken, matchesController.getMatchByID)
+  .get("/download-excel/match/:id", verifyToken, matchesController.generateXLS)
+  .get("/matchData/:id", verifyToken, matchesController.getMatchData)
+  .post("/matches", verifyToken, matchesController.createMatch)
   .post(
     "/matches/generate",
-    verificarToken,
+    verifyToken,
     matchesController.createTournamentMatches
   )
   .post(
     "/matches/generateKnockout",
-    verificarToken,
+    verifyToken,
     matchesController.generateKnockoutMatches
   )
-  .put("/matches/:id", verificarToken, matchesController.updateMatch)
-  .delete("/matches/:id", verificarToken, matchesController.deleteMatch)
-  .post(
-    "/matches/walkover",
-    verificarToken,
-    matchesController.updateMatchStatus
-  )
+  .put("/matches/:id", verifyToken, matchesController.updateMatch)
+  .delete("/matches/:id", verifyToken, matchesController.deleteMatch)
+  .post("/matches/walkover", verifyToken, matchesController.updateMatchStatus)
   .post(
     "/matches/cancel",
-    verificarToken,
+    verifyToken,
     matchesController.cancelMatchDueToIncident
   )
-  .get("/tournaments", tournamentController.getAllTournaments)
-  .get(
-    "/tournaments/:id",
-    verificarToken,
-    tournamentController.getTournamentInfo
-  )
+  .get("/tournaments", verifyToken, tournamentController.getAllTournaments)
+  .get("/tournaments/:id", verifyToken, tournamentController.getTournamentInfo)
   .get(
     "/tournaments/:id/teams",
-    verificarToken,
+    verifyToken,
     tournamentController.getTournamentTeams
   )
   .get(
     "/tournaments/:id/matches",
-    verificarToken,
+    verifyToken,
     tournamentController.getTournamentMatches
   )
   .get(
     "/tournaments/:id/classification",
-    verificarToken,
+    verifyToken,
     tournamentController.getTournamentClassification
   )
-  .post("/tournaments", verificarToken, tournamentController.createTournament)
-  .put(
-    "/tournaments/:id",
-    verificarToken,
-    tournamentController.updateTournament
-  )
+  .post("/tournaments", verifyToken, tournamentController.createTournament)
+  .put("/tournaments/:id", verifyToken, tournamentController.updateTournament)
   .delete(
     "/tournaments/:id",
-    verificarToken,
+    verifyToken,
     tournamentController.deleteTournament
   )
-  .get("/categories", verificarToken, categoriesController.getAllCategories)
-  .get("/categories/:id", verificarToken, categoriesController.getCategoryByID)
-  .post("/categories", verificarToken, categoriesController.createCategory)
-  .put("/categories/:id", verificarToken, categoriesController.updateCategory)
-  .delete(
-    "/categories/:id",
-    verificarToken,
-    categoriesController.deleteCategory
-  )
-  .get("/groups", verificarToken, groupsController.getAllGroups)
-  .get("/groups/:id", verificarToken, groupsController.getGroupByID)
+  .get("/categories", verifyToken, categoriesController.getAllCategories)
+  .get("/categories/:id", verifyToken, categoriesController.getCategoryByID)
+  .post("/categories", verifyToken, categoriesController.createCategory)
+  .put("/categories/:id", verifyToken, categoriesController.updateCategory)
+  .delete("/categories/:id", verifyToken, categoriesController.deleteCategory)
+  .get("/groups", verifyToken, groupsController.getAllGroups)
+  .get("/groups/:id", verifyToken, groupsController.getGroupByID)
   .get(
     "/groupsByTournament/:id",
-    verificarToken,
+    verifyToken,
     groupsController.getGroupsByTournamentID
   )
-  .post("/groups", verificarToken, groupsController.createGroup)
-  .post("/groups/teams", verificarToken, groupsController.createTeamGroup)
-  .post(
-    "/groups/teams/delete",
-    verificarToken,
-    groupsController.deleteTeamGroup
-  )
-  .put("/groups/:id", verificarToken, groupsController.updateGroup)
-  .delete("/groups/:id", verificarToken, groupsController.deleteGroup)
-  .get("/events", verificarToken, eventsController.getAllEvents)
-  .get("/events/:id", verificarToken, eventsController.getEventByID)
-  .post("/events", verificarToken, eventsController.createEvent)
-  .put("/events/:id", verificarToken, eventsController.updateEvent)
-  .delete("/events/:id", verificarToken, eventsController.deleteEvent)
-  .post("/send-whatsapp/:id", verificarToken, eventsController.sendMessage)
+  .post("/groups", verifyToken, groupsController.createGroup)
+  .post("/groups/teams", verifyToken, groupsController.createTeamGroup)
+  .post("/groups/teams/delete", verifyToken, groupsController.deleteTeamGroup)
+  .put("/groups/:id", verifyToken, groupsController.updateGroup)
+  .delete("/groups/:id", verifyToken, groupsController.deleteGroup)
+  .get("/events", verifyToken, eventsController.getAllEvents)
+  .get("/events/:id", verifyToken, eventsController.getEventByID)
+  .post("/events", verifyToken, eventsController.createEvent)
+  .put("/events/:id", verifyToken, eventsController.updateEvent)
+  .delete("/events/:id", verifyToken, eventsController.deleteEvent)
+  .post("/send-whatsapp/:id", verifyToken, eventsController.sendMessage)
   .post(
     "/matchPlayersNumbers/:idMatch",
-    verificarToken,
+    verifyToken,
     matchPlayerNumberController.createMatchPlayerNumbers
   )
   .get(
     "/classifications",
+    verifyToken,
     classificationsController.getAllClassifications
   )
-  .put("/update-classifications", classificationsController.createClassified)
-  .get("/playerStats", verificarToken, playerStatsController.getAllPlayerStats)
+  .put(
+    "/update-classifications",
+    verifyToken,
+    classificationsController.createClassified
+  )
+  .get("/playerStats", verifyToken, playerStatsController.getAllPlayerStats)
   .get(
     "/playerStats/:playerId/tournament/:tournamentId",
-    verificarToken,
+    verifyToken,
     playerStatsController.getPlayerStatsByPlayerAndTournament
   )
-  .post("/playerStats", verificarToken, playerStatsController.createPlayerStats)
+  .post("/playerStats", verifyToken, playerStatsController.createPlayerStats)
   .put(
     "/playerStats/:playerId/tournament/:tournamentId",
-    verificarToken,
+    verifyToken,
     playerStatsController.updatePlayerStats
   )
   .delete(
     "/playerStats/:playerId/tournament/:tournamentId",
-    verificarToken,
+    verifyToken,
     playerStatsController.deletePlayerStats
   )
-  .get("/penalties", verificarToken, penaltiesController.getAllPenalties)
-  .get("/penalties/:id", verificarToken, penaltiesController.getPenaltyByID)
-  .post("/penalties", verificarToken, penaltiesController.createPenalty)
-  .put("/penalties/:id", verificarToken, penaltiesController.updatePenalty)
-  .delete("/penalties/:id", verificarToken, penaltiesController.deletePenalty);
+  .get("/penalties", verifyToken, penaltiesController.getAllPenalties)
+  .get("/penalties/:id", verifyToken, penaltiesController.getPenaltyByID)
+  .post("/penalties", verifyToken, penaltiesController.createPenalty)
+  .put("/penalties/:id", verifyToken, penaltiesController.updatePenalty)
+  .delete("/penalties/:id", verifyToken, penaltiesController.deletePenalty)
+  .get("/torneos", publicLimiter, webController.getAllTournaments)
+  .get("/tablas", publicLimiter, webController.getAllClassifications);
 
 module.exports = router;

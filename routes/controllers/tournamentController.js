@@ -5,6 +5,7 @@ const getAllTournaments = async (req, res) => {
     const db = getDB();
 
     // Definir el filtro según el rol del usuario
+
     const filter = req.user.role === 1 ? {} : { created_by: req.user.id };
 
     // Obtener torneos y categorías simultáneamente con la condición aplicada a torneos
