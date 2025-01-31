@@ -219,6 +219,7 @@ router
   .put("/penalties/:id", verificarToken, penaltiesController.updatePenalty)
   .delete("/penalties/:id", verificarToken, penaltiesController.deletePenalty)
   .get("/torneos", webController.getAllTournaments)
-  .get("/tablas", webController.getAllClassifications);
+  .get("/tablas", webController.getAllClassifications)
+  .get("/tablas/torneo/:id", webController.getTournamentClassification);
 
 module.exports = router;

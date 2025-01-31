@@ -127,7 +127,70 @@ const getAllClassifications = async (req, res) => {
   }
 };
 
+// Obtener clasificación del torneo
+const getTournamentClassification = async (req, res) => {
+  try {
+    const db = getDB();
+    const [classifications, teams, groups] = await Promise.all([
+      db.collection("classifications").find().toArray(),
+      db.collection("teams").find().toArray(),
+      db.collection("groups").find().toArray(),
+    ]);
+
+    const tournamentClassifications = classifications.filter(
+      (classification) =>
+        classification.id_tournament === parseInt(req.params.id)
+    );
+    const formattedClassifications = {};
+
+    tournamentClassifications.forEach((classification) => {
+      const group =
+        groups.find((g) => g.id === classification.id_group)?.name ||
+        "Unknown Group";
+      const team =
+        teams.find((t) => t.id === classification.id_team)?.name ||
+        "Unknown Team";
+
+      if (!formattedClassifications[group]) {
+        formattedClassifications[group] = [];
+      }
+
+      formattedClassifications[group].push({
+        id_team: classification.id_team,
+        id_group: classification.id_group,
+        team,
+        points: classification.points,
+        matches_played: classification.matches_played,
+        matches_won: classification.matches_won,
+        tied_matches: classification.tied_matches,
+        lost_matches: classification.lost_matches,
+        favor_goals: classification.favor_goals,
+        goals_against: classification.goals_against,
+        goal_difference: classification.goal_difference,
+      });
+
+      formattedClassifications[group].sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.goal_difference !== a.goal_difference)
+          return b.goal_difference - a.goal_difference;
+        if (b.favor_goals !== a.favor_goals)
+          return b.favor_goals - a.favor_goals;
+        return a.goals_against - b.goals_against;
+      });
+    });
+
+    res.status(200).send({
+      code: 200,
+      message: "Clasificación del torneo obtenida con éxito",
+      data: formattedClassifications,
+    });
+  } catch (err) {
+    res.status(500).send("Error del servidor");
+  }
+};
+
 module.exports = {
   getAllTournaments,
   getAllClassifications,
+  getTournamentClassification,
 };
