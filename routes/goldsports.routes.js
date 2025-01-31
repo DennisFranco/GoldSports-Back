@@ -14,8 +14,8 @@ const matchPlayerNumberController = require("./controllers/matchPlayerNumberCont
 const playerStatsController = require("./controllers/playerStatsController.js");
 const penaltiesController = require("./controllers/penaltiesController.js");
 const webController = require("./controllers/webController.js");
-const verifyToken = require("../middlewares/verifyToken");
-const publicLimiter = require("../middlewares/rateLimiter");
+const verifyToken = require("./middlewares/verifyToken");
+const publicLimiter = require("./middlewares/rateLimiter");
 
 router
   .post("/login", usersController.loginUser)
