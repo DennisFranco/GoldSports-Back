@@ -91,7 +91,6 @@ router
   .get("/matches/:id", verificarToken, matchesController.getMatchByID)
   .get(
     "/download-excel/match/:id",
-    verificarToken,
     matchesController.generateXLS
   )
   .get("/matchData/:id", verificarToken, matchesController.getMatchData)
