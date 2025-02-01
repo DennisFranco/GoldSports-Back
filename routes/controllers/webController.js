@@ -188,9 +188,75 @@ const getTournamentClassification = async (req, res) => {
     res.status(500).send("Error del servidor");
   }
 };
+const getTournamentTopScorers = async (req, res) => {
+  try {
+    const db = getDB();
+    const { id_tournament } = req.params;
+
+    // Obtener los eventos de goles en el torneo
+    const goalEvents = await db
+      .collection("events")
+      .aggregate([
+        {
+          $match: {
+            id_tournament: parseInt(id_tournament),
+            id_event_type: 1, // Solo eventos de goles
+          },
+        },
+        {
+          $group: {
+            _id: "$id_player",
+            goals: { $sum: 1 }, // Contar goles por jugador
+          },
+        },
+        { $sort: { goals: -1 } }, // Ordenar de mayor a menor goles
+      ])
+      .toArray();
+
+    if (goalEvents.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No hay goleadores en este torneo" });
+    }
+
+    // Obtener los nombres de los jugadores y sus equipos
+    const playerIds = goalEvents.map((event) => event._id);
+    const players = await db
+      .collection("players")
+      .find({ id: { $in: playerIds } })
+      .toArray();
+
+    // Obtener los IDs de los equipos
+    const teamIds = [...new Set(players.map((player) => player.id_team))];
+    const teams = await db
+      .collection("teams")
+      .find({ id: { $in: teamIds } })
+      .toArray();
+
+    // Mapear resultados con nombres de jugadores y equipos
+    const topScorers = goalEvents.map((event) => {
+      const player = players.find((p) => p.id === event._id);
+      const team = teams.find((t) => t.id === (player ? player.id_team : null));
+
+      return {
+        id_player: event._id,
+        name: player ? player.name : "Jugador Desconocido",
+        goals: event.goals,
+        id_team: player ? player.id_team : null,
+        team_name: team ? team.name : "Equipo Desconocido",
+      };
+    });
+
+    res.status(200).json({ topScorers });
+  } catch (error) {
+    console.error("Error al obtener goleadores:", error);
+    res.status(500).json({ message: "Error en el servidor" });
+  }
+};
 
 module.exports = {
   getAllTournaments,
   getAllClassifications,
   getTournamentClassification,
+  getTournamentTopScorers,
 };

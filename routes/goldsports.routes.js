@@ -89,10 +89,7 @@ router
   .delete("/teams/:id", verificarToken, teamsController.deleteTeam)
   .get("/matches", verificarToken, matchesController.getAllMatches)
   .get("/matches/:id", verificarToken, matchesController.getMatchByID)
-  .get(
-    "/download-excel/match/:id",
-    matchesController.generateXLS
-  )
+  .get("/download-excel/match/:id", matchesController.generateXLS)
   .get("/matchData/:id", verificarToken, matchesController.getMatchData)
   .post("/matches", verificarToken, matchesController.createMatch)
   .post(
@@ -219,6 +216,7 @@ router
   .delete("/penalties/:id", verificarToken, penaltiesController.deletePenalty)
   .get("/torneos", webController.getAllTournaments)
   .get("/tablas", webController.getAllClassifications)
-  .get("/tablas/torneo/:id", webController.getTournamentClassification);
+  .get("/tablas/torneo/:id", webController.getTournamentClassification)
+  .get("/goleadores/:id_tournament", webController.getTournamentTopScorers);
 
 module.exports = router;
