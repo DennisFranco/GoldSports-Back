@@ -246,6 +246,7 @@ const createMatch = async (req, res) => {
       id: newId,
       type: "Eliminatorias",
       ...req.body,
+      delegates: Number(req.body.delegates ?? 0)
     };
     await db.collection("matches").insertOne(newMatch);
 
@@ -266,7 +267,7 @@ const updateMatch = async (req, res) => {
     const matchId = parseInt(req.params.id);
 
     // Excluir el campo _id de los datos que se actualizan
-    const updatedMatchClass = { ...req.body };
+    const updatedMatchClass = { ...req.body, delegates: Number(req.body.delegates) };
 
     // Remover el campo _id de ambas clases
     delete updatedMatchClass._id;
@@ -577,7 +578,7 @@ const createTournamentMatches = async (req, res) => {
                 hour_start: "",
                 place: 0,
                 team_refereeing: 0,
-                delegates: "",
+                delegates: 0,
                 local_result: 0,
                 visiting_result: 0,
                 referee: "",
@@ -599,7 +600,7 @@ const createTournamentMatches = async (req, res) => {
               hour_start: "",
               place: 0,
               team_refereeing: 0,
-              delegates: "",
+              delegates: 0,
               local_result: 0,
               visiting_result: 0,
               referee: "",
@@ -725,7 +726,7 @@ const generateKnockoutMatches = async (req, res) => {
       hour_start: "",
       place: 0,
       team_refereeing: 0,
-      delegates: "",
+      delegates: 0,
       local_result: 0,
       visiting_result: 0,
       referee: "",
