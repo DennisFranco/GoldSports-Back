@@ -54,15 +54,15 @@ const getAllClassifications = async (req, res) => {
       formattedClassifications[tournamentId].groups[
         groupId
       ].classifications.push({
-        equipo: teamName,
-        puntos: classification.points,
-        partidos_jugados: classification.matches_played,
-        partidos_ganados: classification.matches_won,
-        partidos_empatados: classification.tied_matches,
-        partidos_perdidos: classification.lost_matches,
-        goles_a_favor: classification.favor_goals,
-        goles_en_contra: classification.goals_against,
-        diferencia_de_goles: classification.goal_difference,
+        team: teamName,
+        points: classification.points,
+        matches_played: classification.matches_played,
+        matches_won: classification.matches_won,
+        tied_matches: classification.tied_matches,
+        lost_matches: classification.lost_matches,
+        favor_goals: classification.favor_goals,
+        goals_against: classification.goals_against,
+        goal_difference: classification.goal_difference,
       });
     });
 
@@ -72,12 +72,12 @@ const getAllClassifications = async (req, res) => {
         formattedClassifications[tournamentId].groups[
           groupId
         ].classifications.sort((a, b) => {
-          if (b.puntos !== a.puntos) return b.puntos - a.puntos;
-          if (b.diferencia_de_goles !== a.diferencia_de_goles)
-            return b.diferencia_de_goles - a.diferencia_de_goles;
-          if (b.goles_a_favor !== a.goles_a_favor)
-            return b.goles_a_favor - a.goles_a_favor;
-          return a.goles_en_contra - b.goles_en_contra;
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.goal_difference !== a.goal_difference)
+            return b.goal_difference - a.goal_difference;
+          if (b.favor_goals !== a.favor_goals)
+            return b.favor_goals - a.favor_goals;
+          return a.goals_against - b.goals_against;
         });
       }
     }

@@ -395,14 +395,15 @@ const createPlayer = async (req, res) => {
     const { number_id } = req.body;
 
     // Verificar si el jugador ya existe
-    const playerExists = await db
-      .collection("players")
-      .findOne({ number_id: number_id });
+    const playerExists = await db.collection("players").findOne({ number_id });
 
     if (playerExists) {
+      // Buscar el equipo del jugador existente
+      const team = await db.collection("teams").findOne({ id: playerExists.id_team });
+      
       return res.status(400).send({
         code: 400,
-        message: "El jugador con este número de identificación ya existe",
+        message: `El jugador asociado con el documento No. ${number_id} ya está registrado en el equipo ${team ? team.name : 'desconocido'}.`,
       });
     }
 
@@ -434,6 +435,7 @@ const createPlayer = async (req, res) => {
     res.status(500).send("Error en el servidor");
   }
 };
+
 
 // Actualizar un jugador por ID
 const updatePlayer = async (req, res) => {

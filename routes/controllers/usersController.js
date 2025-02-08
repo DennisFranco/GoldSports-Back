@@ -6,7 +6,10 @@ const bcrypt = require("bcryptjs");
 const getAllUsers = async (req, res) => {
   try {
     const db = getDB();
-    const users = await db.collection("users").find().toArray();
+
+    const filter = req.user.role === 1 ? {} : { id: req.user.id };
+
+    const users = await db.collection("users").find(filter).toArray();
     const roles = await db.collection("roles").find().toArray();
 
     if (users && roles) {

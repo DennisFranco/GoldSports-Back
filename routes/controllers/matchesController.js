@@ -40,7 +40,9 @@ const getAllMatches = async (req, res) => {
     const endDate = new Date(queryDate);
     endDate.setDate(queryDate.getDate() + 7);
 
-    const matches = await db.collection("matches").find().toArray();
+    const filter = req.user.role === 1 ? {} : { delegates: req.user.id };
+
+    const matches = await db.collection("matches").find(filter).toArray();
     const fields = await db.collection("fields").find().toArray();
     const tournaments = await db.collection("tournaments").find().toArray();
     const teams = await db.collection("teams").find().toArray();
@@ -1323,10 +1325,22 @@ const generateKnockoutMatches = async (req, res) => {
 
 const getMatchData = async (req, res) => {
   try {
+    console.log("Inicio del servicio getMatchData");
+    console.log("ID del partido recibido:", req.params.id);
+
     const db = getDB();
+    const matchId = parseInt(req.params.id);
+
+    if (isNaN(matchId)) {
+      console.warn("El ID del partido no es válido.");
+      return res.status(400).send("ID del partido inválido");
+    }
+
+    console.log("Consultando datos en la base de datos...");
+
     const [match, teams, players, events, matchPlayersNumbers, penalties] =
       await Promise.all([
-        db.collection("matches").findOne({ id: parseInt(req.params.id) }),
+        db.collection("matches").findOne({ id: matchId }),
         db.collection("teams").find().toArray(),
         db.collection("players").find().toArray(),
         db.collection("events").find().toArray(),
@@ -1334,7 +1348,10 @@ const getMatchData = async (req, res) => {
         db.collection("penalties").find().toArray(),
       ]);
 
+    console.log("Datos del partido:", match);
+
     if (!match) {
+      console.warn("Partido no encontrado.");
       return res.status(404).send("Partido no encontrado");
     }
 
@@ -1342,25 +1359,63 @@ const getMatchData = async (req, res) => {
     const awayTeam = teams.find((t) => t.id === match.visiting_team);
 
     if (!homeTeam || !awayTeam) {
+      console.warn("Equipos no encontrados.");
       return res.status(404).send("Equipos no encontrados");
     }
 
-    const homePlayers = players.filter(
-      (p) =>
-        p.id_team === homeTeam.id && p.tournaments.includes(match.id_tournament)
-    );
-    const awayPlayers = players.filter(
-      (p) =>
-        p.id_team === awayTeam.id && p.tournaments.includes(match.id_tournament)
-    );
+    console.log("Equipos encontrados:", homeTeam.name, awayTeam.name);
 
-    // Verificar si jugadores sancionados han cumplido su sanción
+    const homePlayers = players.filter((p) => {
+      const penalty = penalties.find(
+        (pen) =>
+          pen.id_player === p.id &&
+          pen.status === "Vigente" &&
+          pen.id_tournament === match.id_tournament
+      );
+    
+      // Excluir si tiene una sanción vigente y no es el partido donde fue sancionado
+      if (penalty && penalty.id_match !== match.id) {
+        console.log(`Jugador ${p.name} (ID: ${p.id}) tiene sanción vigente. Excluido.`);
+        return false;
+      }
+    
+      return p.id_team === homeTeam.id && p.tournaments.includes(match.id_tournament);
+    });
+    
+    const awayPlayers = players.filter((p) => {
+      const penalty = penalties.find(
+        (pen) =>
+          pen.id_player === p.id &&
+          pen.status === "Vigente" &&
+          pen.id_tournament === match.id_tournament
+      );
+    
+      // Excluir si tiene una sanción vigente y no es el partido donde fue sancionado
+      if (penalty && penalty.id_match !== match.id) {
+        console.log(`Jugador ${p.name} (ID: ${p.id}) tiene sanción vigente. Excluido.`);
+        return false;
+      }
+    
+      return p.id_team === awayTeam.id && p.tournaments.includes(match.id_tournament);
+    });
+    
+
+    console.log("Jugadores locales:", homePlayers.length);
+    console.log("Jugadores visitantes:", awayPlayers.length);
+
     const checkPenaltyStatus = async (players) => {
+      console.log("Verificando sanciones...");
       const updatedPlayers = [];
+
+      const tournamentMatches = await db
+        .collection("matches")
+        .find({ id_tournament: match.id_tournament, status: 7 }) // Solo partidos finalizados
+        .toArray();
 
       for (const player of players) {
         if (player.status === 3) {
-          // Si el jugador está sancionado
+          console.log(`Jugador sancionado: ${player.name} (ID: ${player.id})`);
+
           const playerPenalties = penalties.filter(
             (penalty) =>
               penalty.id_player === player.id &&
@@ -1369,39 +1424,42 @@ const getMatchData = async (req, res) => {
           );
 
           if (playerPenalties.length > 0) {
+            console.log(`Penalización activa para el jugador ${player.name}`);
             const lastPenalty = playerPenalties[0];
 
-            // Verificar si el jugador no jugó en el partido siguiente a su sanción
-            const subsequentMatches = matches
-              .filter(
-                (m) =>
-                  m.id_tournament === match.id_tournament && m.date > match.date
-              )
-              .sort((a, b) => new Date(a.date) - new Date(b.date));
+            // Verificar si este es el partido donde fue sancionado
+            if (lastPenalty.id_match === match.id) {
+              console.log(`Este es el partido donde se sancionó al jugador ${player.name}. Permitido participar.`);
+              continue; // Permitir que este jugador participe en el partido actual
+            }
 
-            const didNotPlay = !events.some(
-              (e) =>
-                e.id_player === player.id &&
-                e.id_match === subsequentMatches[0]?.id
+            const { sanction_duration } = lastPenalty;
+            const subsequentMatches = tournamentMatches
+              .filter((m) => m.date > match.date)
+              .sort((a, b) => new Date(a.date) - new Date(b.date))
+              .slice(0, sanction_duration);
+
+            const didNotPlayInAny = subsequentMatches.every(
+              (subMatch) =>
+                !events.some(
+                  (e) => e.id_player === player.id && e.id_match === subMatch.id
+                )
             );
 
-            if (didNotPlay) {
-              // Cumplió su sanción, actualizar su estado a 4
+            if (didNotPlayInAny) {
+              console.log(`Sanción cumplida para el jugador ${player.name}. Actualizando estado...`);
               player.status = 4;
               updatedPlayers.push(player);
 
-              // Actualizar el estado del jugador en la base de datos
-              await db
-                .collection("players")
-                .updateOne({ id: player.id }, { $set: { status: 4 } });
+              await db.collection("players").updateOne(
+                { id: player.id },
+                { $set: { status: 4 } }
+              );
 
-              // Cambiar el estado de la penalización a "Cumplido"
-              await db
-                .collection("penalties")
-                .updateOne(
-                  { id: lastPenalty.id },
-                  { $set: { status: "Cumplido" } }
-                );
+              await db.collection("penalties").updateOne(
+                { id: lastPenalty.id },
+                { $set: { status: "Cumplido" } }
+              );
             }
           }
         }
@@ -1419,14 +1477,16 @@ const getMatchData = async (req, res) => {
         const player = players.find((p) => p.id === e.id_player);
         return {
           id: e.id,
+          id_player: e.id_player,
           player: player ? player.name : "Jugador Desconocido",
-          minute: `${e.minute}'`,
           team: homePlayers.find((p) => p.id === e.id_player)
-            ? "local"
-            : "visitante",
+            ? "Home"
+            : "Away",
           type: e.id_event_type,
         };
       });
+
+    console.log("Eventos del partido:", matchEvents);
 
     const matchPlayersNumbersMap = matchPlayersNumbers.reduce((acc, mpn) => {
       if (mpn.id_match === match.id) {
@@ -1435,13 +1495,25 @@ const getMatchData = async (req, res) => {
       return acc;
     }, {});
 
-    const formatPlayer = (player) => ({
-      id: player.id,
-      name: player.name,
-      position: player.position,
-      number: matchPlayersNumbersMap[player.id] || player.number,
-      status: player.status,
-    });
+    const formatPlayer = (player) => {
+      const playerEvents = matchEvents.filter((e) => e.id_player === player.id);
+      const goals = playerEvents.filter((e) => e.type === 1).length;
+      const yellowCards = playerEvents.filter((e) => e.type === 2).length;
+      const redCards = playerEvents.filter((e) => e.type === 3).length;
+
+      return {
+        id: player.id,
+        name: player.name,
+        position: player.position,
+        number: matchPlayersNumbersMap[player.id] || player.number,
+        status: player.status,
+        stats: {
+          goals,
+          yellowCards,
+          redCards,
+        },
+      };
+    };
 
     let dateMatch = new Date(match.date);
     const matchDate = getColombianDate(
@@ -1454,7 +1526,7 @@ const getMatchData = async (req, res) => {
         manager: homeTeam.manager_name,
         name: homeTeam.name,
         logo: homeTeam.logo,
-        formation: "4-3-3", // Formación de ejemplo, actualiza según sea necesario
+        formation: "4-3-3",
         players: homePlayers.map(formatPlayer),
       },
       awayTeam: {
@@ -1462,7 +1534,7 @@ const getMatchData = async (req, res) => {
         manager: awayTeam.manager_name,
         name: awayTeam.name,
         logo: awayTeam.logo,
-        formation: "4-3-3", // Formación de ejemplo, actualiza según sea necesario
+        formation: "4-3-3",
         players: awayPlayers.map(formatPlayer),
       },
       hour: match.hour_start,
@@ -1475,13 +1547,20 @@ const getMatchData = async (req, res) => {
       updatedAwayPlayers,
     };
 
+    console.log("Datos del partido formateados correctamente:", matchData);
+
     res.status(200).send({
       code: 200,
       message: "Datos del partido obtenidos con éxito",
       data: matchData,
     });
   } catch (err) {
-    res.status(500).send("Error en el servidor");
+    console.error("Error en el servidor:", err);
+    res.status(500).send({
+      code: 500,
+      message: "Error interno en el servidor",
+      error: err.message,
+    });
   }
 };
 

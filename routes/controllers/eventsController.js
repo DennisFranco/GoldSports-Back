@@ -196,7 +196,7 @@ const createEvent = async (req, res) => {
         id_tournament: newEvent.id_tournament,
         date: new Date().toISOString().split("T")[0],
         description: "Suspendido por tarjeta roja directa",
-        sanction_duration: 1,
+        sanction_duration: newEvent.sanctioned_matches,
         status: "Vigente",
       };
       await db.collection("penalties").insertOne(penalty);
