@@ -98,7 +98,7 @@ const loginUser = async (req, res) => {
     jwt.sign(
       { user },
       process.env.SECRET_KEY,
-      { expiresIn: "8h" },
+      { expiresIn: "2h" },
       (err, token) => {
         if (err) {
           return res.status(500).send("Error al crear el token");
