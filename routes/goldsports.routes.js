@@ -217,6 +217,7 @@ router
   .get("/torneos", webController.getAllTournaments)
   .get("/tablas", webController.getAllClassifications)
   .get("/tablas/torneo/:id", webController.getTournamentClassification)
-  .get("/goleadores/:id_tournament", webController.getTournamentTopScorers);
+  .get("/goleadores/:id_tournament", webController.getTournamentTopScorers)
+  .get("/sanciones/:tournamentId", webController.getTournamentPenalties);
 
 module.exports = router;

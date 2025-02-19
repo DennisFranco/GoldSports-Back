@@ -188,11 +188,11 @@ const getTournamentClassification = async (req, res) => {
     res.status(500).send("Error del servidor");
   }
 };
+
 const getTournamentTopScorers = async (req, res) => {
   try {
     const db = getDB();
     const { id_tournament } = req.params;
-
     // Obtener los eventos de goles en el torneo
     const goalEvents = await db
       .collection("events")
@@ -254,9 +254,75 @@ const getTournamentTopScorers = async (req, res) => {
   }
 };
 
+const getTournamentPenalties = async (req, res) => {
+  try {
+    const db = getDB();
+    const tournamentId = parseInt(req.params.tournamentId);
+
+    // Obtener las sanciones del torneo
+    const penalties = await db
+      .collection("penalties")
+      .find({ id_tournament: tournamentId })
+      .toArray();
+
+    if (penalties.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No hay sanciones registradas para este torneo." });
+    }
+
+    // Obtener IDs de jugadores y partidos involucrados
+    const playerIds = penalties.map((p) => p.id_player);
+    const matchIds = penalties.map((p) => p.id_match);
+
+    // Consultar jugadores sancionados
+    const players = await db
+      .collection("players")
+      .find({ id: { $in: playerIds } })
+      .toArray();
+
+    // Consultar partidos donde se aplicaron las sanciones
+    const matches = await db
+      .collection("matches")
+      .find({ id: { $in: matchIds } })
+      .toArray();
+
+    // Obtener IDs de equipos para los jugadores sancionados
+    const teamIds = players.map((p) => p.id_team);
+    const teams = await db
+      .collection("teams")
+      .find({ id: { $in: teamIds } })
+      .toArray();
+
+    // Mapear información completa de sanciones
+    const penaltiesData = penalties.map((penalty) => {
+      const player = players.find((p) => p.id === penalty.id_player) || {};
+      const match = matches.find((m) => m.id === penalty.id_match) || {};
+      const team = teams.find((t) => t.id === player.id_team) || {};
+
+      return {
+        id: penalty.id,
+        player_name: player.name || "Desconocido",
+        team_name: team.name || "Desconocido",
+        match_type: match.type || "Desconocido",
+        match_date: match.date || "Desconocido",
+        description: penalty.description,
+        sanction_duration: penalty.sanction_duration,
+        status: penalty.status,
+      };
+    });
+
+    res.status(200).json({ penaltiesData });
+  } catch (error) {
+    console.error("Error al obtener goleadores:", error);
+    res.status(500).json({ message: "Error en el servidor" });
+  }
+};
+
 module.exports = {
   getAllTournaments,
   getAllClassifications,
   getTournamentClassification,
   getTournamentTopScorers,
+  getTournamentPenalties,
 };

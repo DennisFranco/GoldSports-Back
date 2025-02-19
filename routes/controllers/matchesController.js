@@ -31,31 +31,23 @@ const formatDate = (date) => {
 // Obtener todos los partidos
 const getAllMatches = async (req, res) => {
   try {
-    console.log("Inicio de getAllMatches");
     const db = getDB();
 
     const { date } = req.query;
     const queryDate = date ? new Date(date) : new Date();
-    console.log("Fecha de consulta:", queryDate);
 
     const startDate = new Date(queryDate);
     startDate.setDate(queryDate.getDate() - 7);
     const endDate = new Date(queryDate);
     endDate.setDate(queryDate.getDate() + 7);
 
-    console.log("Rango de fechas:", { startDate, endDate });
-
     const filter = req.user.role === 1 ? {} : { delegates: req.user.id };
-    console.log("Filtro aplicado:", filter);
 
     const matches = await db.collection("matches").find(filter).toArray();
-    console.log("Partidos encontrados:", matches.length);
 
     const fields = await db.collection("fields").find().toArray();
     const tournaments = await db.collection("tournaments").find().toArray();
     const teams = await db.collection("teams").find().toArray();
-    
-    console.log("Campos, torneos y equipos obtenidos.");
 
     const formattedMatches = {};
 
@@ -68,10 +60,12 @@ const getAllMatches = async (req, res) => {
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowString = tomorrow.toISOString().split("T")[0];
 
-    console.log("Fechas relativas: HOY =", todayString, " AYER =", yesterdayString, " MAÑANA =", tomorrowString);
-
     // Generar claves para cada día en el rango
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    for (
+      let d = new Date(startDate);
+      d <= endDate;
+      d.setDate(d.getDate() + 1)
+    ) {
       const matchDateString = getColombianDate(d).toISOString().split("T")[0];
       let formattedDate;
 
@@ -92,12 +86,13 @@ const getAllMatches = async (req, res) => {
 
     matches.forEach((match) => {
       if (!match.date) {
-        console.log("Partido sin fecha, omitido:", match.id);
         return;
       }
 
       let dateMatch = new Date(match.date);
-      const matchDate = getColombianDate(dateMatch.setDate(dateMatch.getDate() + 1));
+      const matchDate = getColombianDate(
+        dateMatch.setDate(dateMatch.getDate() + 1)
+      );
       const matchDateString = matchDate.toISOString().split("T")[0];
 
       if (matchDate >= startDate && matchDate <= endDate) {
@@ -113,14 +108,21 @@ const getAllMatches = async (req, res) => {
           formattedDate = formatDate(matchDate);
         }
 
-        const tournament = tournaments.find((t) => t.id === match.id_tournament)?.name || "Torneo Desconocido";
-        const place = fields.find((f) => f.id === match.place)?.name || "Lugar Desconocido";
-        const localTeam = teams.find((t) => t.id === match.local_team)?.name || "Equipo Desconocido";
-        const visitingTeam = teams.find((t) => t.id === match.visiting_team)?.name || "Equipo Desconocido";
+        const tournament =
+          tournaments.find((t) => t.id === match.id_tournament)?.name ||
+          "Torneo Desconocido";
+        const place =
+          fields.find((f) => f.id === match.place)?.name || "Lugar Desconocido";
+        const localTeam =
+          teams.find((t) => t.id === match.local_team)?.name ||
+          "Equipo Desconocido";
+        const visitingTeam =
+          teams.find((t) => t.id === match.visiting_team)?.name ||
+          "Equipo Desconocido";
 
-        console.log("Procesando partido:", { match, formattedDate, tournament, place, localTeam, visitingTeam });
-
-        let tournamentMatches = formattedMatches[formattedDate].find((t) => t.tournament === tournament);
+        let tournamentMatches = formattedMatches[formattedDate].find(
+          (t) => t.tournament === tournament
+        );
         if (!tournamentMatches) {
           tournamentMatches = { tournament: tournament, matches: [] };
           formattedMatches[formattedDate].push(tournamentMatches);
@@ -132,14 +134,15 @@ const getAllMatches = async (req, res) => {
           round: match.round || "Ronda Desconocida",
           team1: localTeam,
           team2: visitingTeam,
-          time: match.status === 5 ? `${match.local_result}-${match.visiting_result}` : match.hour_start,
+          time:
+            match.status === 5
+              ? `${match.local_result}-${match.visiting_result}`
+              : match.hour_start,
           place,
           status: match.status,
         });
       }
     });
-
-    console.log("Partidos formateados:", JSON.stringify(formattedMatches, null, 2));
 
     res.status(200).send({
       code: 200,
@@ -147,7 +150,6 @@ const getAllMatches = async (req, res) => {
       data: formattedMatches,
     });
   } catch (err) {
-    console.error("Error en el servidor:", err);
     res.status(500).send("Error en el servidor");
   }
 };
@@ -246,7 +248,7 @@ const createMatch = async (req, res) => {
       id: newId,
       type: "Eliminatorias",
       ...req.body,
-      delegates: Number(req.body.delegates ?? 0)
+      delegates: Number(req.body.delegates ?? 0),
     };
     await db.collection("matches").insertOne(newMatch);
 
@@ -267,7 +269,10 @@ const updateMatch = async (req, res) => {
     const matchId = parseInt(req.params.id);
 
     // Excluir el campo _id de los datos que se actualizan
-    const updatedMatchClass = { ...req.body, delegates: Number(req.body.delegates) };
+    const updatedMatchClass = {
+      ...req.body,
+      delegates: Number(req.body.delegates),
+    };
 
     // Remover el campo _id de ambas clases
     delete updatedMatchClass._id;
@@ -556,9 +561,6 @@ const createTournamentMatches = async (req, res) => {
           );
 
           if (existingMatchBetweenTeams) {
-            console.log(
-              `Ya existe un partido entre ${home?.name} y ${away?.name}, se omite la creación del partido.`
-            );
             continue; // No agregar este partido
           }
 
@@ -639,7 +641,6 @@ const createTournamentMatches = async (req, res) => {
       data: newMatches,
     });
   } catch (err) {
-    console.error("Error en el servidor:", err);
     res.status(500).send("Error en el servidor");
   }
 };
@@ -743,16 +744,12 @@ const generateKnockoutMatches = async (req, res) => {
       data: newMatches,
     });
   } catch (err) {
-    console.error("Error en el servidor:", err);
     res.status(500).send("Error en el servidor");
   }
 };
 
 const getMatchData = async (req, res) => {
   try {
-    console.log("Inicio del servicio getMatchData");
-    console.log("ID del partido recibido:", req.params.id);
-
     const db = getDB();
     const matchId = parseInt(req.params.id);
 
@@ -760,8 +757,6 @@ const getMatchData = async (req, res) => {
       console.warn("El ID del partido no es válido.");
       return res.status(400).send("ID del partido inválido");
     }
-
-    console.log("Consultando datos en la base de datos...");
 
     const [match, teams, players, events, matchPlayersNumbers, penalties] =
       await Promise.all([
@@ -772,8 +767,6 @@ const getMatchData = async (req, res) => {
         db.collection("match_players_numbers").find().toArray(),
         db.collection("penalties").find().toArray(),
       ]);
-
-    console.log("Datos del partido:", match);
 
     if (!match) {
       console.warn("Partido no encontrado.");
@@ -788,8 +781,6 @@ const getMatchData = async (req, res) => {
       return res.status(404).send("Equipos no encontrados");
     }
 
-    console.log("Equipos encontrados:", homeTeam.name, awayTeam.name);
-
     const homePlayers = players.filter((p) => {
       const penalty = penalties.find(
         (pen) =>
@@ -797,16 +788,17 @@ const getMatchData = async (req, res) => {
           pen.status === "Vigente" &&
           pen.id_tournament === match.id_tournament
       );
-    
+
       // Excluir si tiene una sanción vigente y no es el partido donde fue sancionado
       if (penalty && penalty.id_match !== match.id) {
-        console.log(`Jugador ${p.name} (ID: ${p.id}) tiene sanción vigente. Excluido.`);
         return false;
       }
-    
-      return p.id_team === homeTeam.id && p.tournaments.includes(match.id_tournament);
+
+      return (
+        p.id_team === homeTeam.id && p.tournaments.includes(match.id_tournament)
+      );
     });
-    
+
     const awayPlayers = players.filter((p) => {
       const penalty = penalties.find(
         (pen) =>
@@ -814,22 +806,18 @@ const getMatchData = async (req, res) => {
           pen.status === "Vigente" &&
           pen.id_tournament === match.id_tournament
       );
-    
+
       // Excluir si tiene una sanción vigente y no es el partido donde fue sancionado
       if (penalty && penalty.id_match !== match.id) {
-        console.log(`Jugador ${p.name} (ID: ${p.id}) tiene sanción vigente. Excluido.`);
         return false;
       }
-    
-      return p.id_team === awayTeam.id && p.tournaments.includes(match.id_tournament);
-    });
-    
 
-    console.log("Jugadores locales:", homePlayers.length);
-    console.log("Jugadores visitantes:", awayPlayers.length);
+      return (
+        p.id_team === awayTeam.id && p.tournaments.includes(match.id_tournament)
+      );
+    });
 
     const checkPenaltyStatus = async (players) => {
-      console.log("Verificando sanciones...");
       const updatedPlayers = [];
 
       const tournamentMatches = await db
@@ -839,8 +827,6 @@ const getMatchData = async (req, res) => {
 
       for (const player of players) {
         if (player.status === 3) {
-          console.log(`Jugador sancionado: ${player.name} (ID: ${player.id})`);
-
           const playerPenalties = penalties.filter(
             (penalty) =>
               penalty.id_player === player.id &&
@@ -849,12 +835,10 @@ const getMatchData = async (req, res) => {
           );
 
           if (playerPenalties.length > 0) {
-            console.log(`Penalización activa para el jugador ${player.name}`);
             const lastPenalty = playerPenalties[0];
 
             // Verificar si este es el partido donde fue sancionado
             if (lastPenalty.id_match === match.id) {
-              console.log(`Este es el partido donde se sancionó al jugador ${player.name}. Permitido participar.`);
               continue; // Permitir que este jugador participe en el partido actual
             }
 
@@ -872,19 +856,19 @@ const getMatchData = async (req, res) => {
             );
 
             if (didNotPlayInAny) {
-              console.log(`Sanción cumplida para el jugador ${player.name}. Actualizando estado...`);
               player.status = 4;
               updatedPlayers.push(player);
 
-              await db.collection("players").updateOne(
-                { id: player.id },
-                { $set: { status: 4 } }
-              );
+              await db
+                .collection("players")
+                .updateOne({ id: player.id }, { $set: { status: 4 } });
 
-              await db.collection("penalties").updateOne(
-                { id: lastPenalty.id },
-                { $set: { status: "Cumplido" } }
-              );
+              await db
+                .collection("penalties")
+                .updateOne(
+                  { id: lastPenalty.id },
+                  { $set: { status: "Cumplido" } }
+                );
             }
           }
         }
@@ -904,14 +888,10 @@ const getMatchData = async (req, res) => {
           id: e.id,
           id_player: e.id_player,
           player: player ? player.name : "Jugador Desconocido",
-          team: homePlayers.find((p) => p.id === e.id_player)
-            ? "Home"
-            : "Away",
+          team: homePlayers.find((p) => p.id === e.id_player) ? "Home" : "Away",
           type: e.id_event_type,
         };
       });
-
-    console.log("Eventos del partido:", matchEvents);
 
     const matchPlayersNumbersMap = matchPlayersNumbers.reduce((acc, mpn) => {
       if (mpn.id_match === match.id) {
@@ -972,15 +952,12 @@ const getMatchData = async (req, res) => {
       updatedAwayPlayers,
     };
 
-    console.log("Datos del partido formateados correctamente:", matchData);
-
     res.status(200).send({
       code: 200,
       message: "Datos del partido obtenidos con éxito",
       data: matchData,
     });
   } catch (err) {
-    console.error("Error en el servidor:", err);
     res.status(500).send({
       code: 500,
       message: "Error interno en el servidor",
