@@ -67,6 +67,10 @@ const createEvent = async (req, res) => {
       .find()
       .toArray();
     const playerStats = await db.collection("player_stats").find().toArray();
+    const matchPlayersNumbers = await db
+      .collection("match_players_numbers")
+      .find()
+      .toArray();
 
     const tournament = tournaments.find(
       (t) => t.id === parseInt(req.body.id_tournament)
@@ -258,10 +262,10 @@ const createEvent = async (req, res) => {
               visitingTeam.tied_matches += 1;
             }
 
-            localTeam.points += req.body.teamAProtocol ? 2 : 0;
-            localTeam.points += req.body.teamAConduct ? 2 : 0;
-            visitingTeam.points += req.body.teamBProtocol ? 2 : 0;
-            visitingTeam.points += req.body.teamBConduct ? 2 : 0;
+            localTeam.pointsProtocol += req.body.teamAProtocol ? 2 : 0;
+            localTeam.pointsConduct += req.body.teamAConduct ? 2 : 0;
+            visitingTeam.pointsProtocol += req.body.teamBProtocol ? 2 : 0;
+            visitingTeam.pointsConduct += req.body.teamBConduct ? 2 : 0;
           } else {
             if (match.local_result > match.visiting_result) {
               localTeam.points += 3;
@@ -276,6 +280,40 @@ const createEvent = async (req, res) => {
               visitingTeam.points += 1;
               localTeam.tied_matches += 1;
               visitingTeam.tied_matches += 1;
+            }
+          }
+
+          // Obtener jugadores sancionados de este partido
+          const penalties = await db
+            .collection("penalties")
+            .find()
+            .toArray();
+
+          if (penalties.length === 0) {
+            console.log("No hay jugadores sancionados para este partido.");
+            return;
+          }
+
+          for (const penalty of penalties) {
+            const playerId = penalty.id_player;
+
+            // Buscar si el jugador jugó en match_players_numbers
+            const playerInMatch = await db
+              .collection("match_players_numbers")
+              .findOne({
+                id_match: newEvent.id_match,
+                id_player: playerId,
+              });
+
+            // Si el jugador no jugó, restar 1 a la sanción
+            if (!playerInMatch) {
+              await db
+                .collection("penalties")
+                .updateOne(
+                  { id: penalty.id },
+                  { $inc: { sanction_duration: -1 } }
+                );
+              console.log(`Sanción reducida para el jugador ${playerId}`);
             }
           }
 

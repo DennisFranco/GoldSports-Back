@@ -322,24 +322,46 @@ const getTournamentClassification = async (req, res) => {
       const team =
         teams.find((t) => t.id === classification.id_team)?.name ||
         "Unknown Team";
+      const teamLogo =
+        teams.find((t) => t.id === classification.id_team)?.logo ||
+        "Unknown Team";
 
       if (!formattedClassifications[group]) {
         formattedClassifications[group] = [];
       }
-
-      formattedClassifications[group].push({
-        id_team: classification.id_team,
-        id_group: classification.id_group,
-        team,
-        points: classification.points,
-        matches_played: classification.matches_played,
-        matches_won: classification.matches_won,
-        tied_matches: classification.tied_matches,
-        lost_matches: classification.lost_matches,
-        favor_goals: classification.favor_goals,
-        goals_against: classification.goals_against,
-        goal_difference: classification.goal_difference,
-      });
+      if (tournament.id_category === 1) {
+        formattedClassifications[group].push({
+          id_team: classification.id_team,
+          id_group: classification.id_group,
+          team,
+          team_logo: teamLogo,
+          points: classification.points,
+          matches_played: classification.matches_played,
+          matches_won: classification.matches_won,
+          tied_matches: classification.tied_matches,
+          lost_matches: classification.lost_matches,
+          favor_goals: classification.favor_goals,
+          goals_against: classification.goals_against,
+          goal_difference: classification.goal_difference,
+          pointsProtocol: classification.pointsProtocol,
+          pointsConduct: classification.pointsConduct,
+        });
+      } else {
+        formattedClassifications[group].push({
+          id_team: classification.id_team,
+          id_group: classification.id_group,
+          team,
+          team_logo: teamLogo,
+          points: classification.points,
+          matches_played: classification.matches_played,
+          matches_won: classification.matches_won,
+          tied_matches: classification.tied_matches,
+          lost_matches: classification.lost_matches,
+          favor_goals: classification.favor_goals,
+          goals_against: classification.goals_against,
+          goal_difference: classification.goal_difference,
+        });
+      }
 
       formattedClassifications[group].sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;

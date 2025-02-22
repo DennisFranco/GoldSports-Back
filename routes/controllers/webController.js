@@ -247,7 +247,11 @@ const getTournamentTopScorers = async (req, res) => {
       };
     });
 
-    res.status(200).json({ topScorers });
+    res.status(200).send({
+      code: 200,
+      message: "Información del torneo obtenida con éxito",
+      data: topScorers,
+    });
   } catch (error) {
     console.error("Error al obtener goleadores:", error);
     res.status(500).json({ message: "Error en el servidor" });
@@ -312,7 +316,11 @@ const getTournamentPenalties = async (req, res) => {
       };
     });
 
-    res.status(200).json({ penaltiesData });
+    res.status(200).send({
+      code: 200,
+      message: "Información del torneo obtenida con éxito",
+      data: penaltiesData,
+    });
   } catch (error) {
     console.error("Error al obtener goleadores:", error);
     res.status(500).json({ message: "Error en el servidor" });
