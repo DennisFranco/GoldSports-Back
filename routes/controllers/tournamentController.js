@@ -303,11 +303,20 @@ const getTournamentMatches = async (req, res) => {
 const getTournamentClassification = async (req, res) => {
   try {
     const db = getDB();
-    const [classifications, teams, groups] = await Promise.all([
+    const [classifications, teams, groups, tournaments] = await Promise.all([
       db.collection("classifications").find().toArray(),
       db.collection("teams").find().toArray(),
       db.collection("groups").find().toArray(),
+      db.collection("tournaments").find().toArray(),
     ]);
+
+    const tournament = tournaments.find(
+      (t) => t.id === parseInt(req.params.id)
+    );
+
+    if (!tournament) {
+      return res.status(404).send("Torneo no encontrado");
+    }
 
     const tournamentClassifications = classifications.filter(
       (classification) =>
@@ -329,6 +338,7 @@ const getTournamentClassification = async (req, res) => {
       if (!formattedClassifications[group]) {
         formattedClassifications[group] = [];
       }
+
       if (tournament.id_category === 1) {
         formattedClassifications[group].push({
           id_team: classification.id_team,
